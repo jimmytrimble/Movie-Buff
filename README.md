@@ -9,6 +9,7 @@ Users can browse an extensive movie database, view detailed information about ea
 The app also features a Reels experience where users can discover new content by swiping through movie trailers and interacting with community comments and reviews.
 
 ✨ Features
+
 🎥 Browse Movies & TV Shows
 Browse an extensive movie and television database
 View detailed information for every title
