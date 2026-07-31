@@ -12,12 +12,19 @@ The app also features a Reels experience where users can discover new content by
 
 🎥 Browse Movies & TV Shows
 Browse an extensive movie and television database
+
 View detailed information for every title
+
 Access movie posters, ratings, genres, runtime, release dates, and descriptions
+
 📺 Streaming Availability
+
 View available streaming services for each movie or show
+
 Tap a streaming platform to launch it directly
+
 Quickly discover where content is available without searching multiple services
+
 ❤️ Favorites & Saved Lists
 Save favorite movies and shows
 Build your personal watchlist
