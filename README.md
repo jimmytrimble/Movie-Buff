@@ -26,14 +26,23 @@ Tap a streaming platform to launch it directly
 Quickly discover where content is available without searching multiple services
 
 ❤️ Favorites & Saved Lists
+
 Save favorite movies and shows
+
 Build your personal watchlist
+
 Organize movies you want to watch later
+
 Access your saved titles anytime
+
 👥 Share With Friends
+
 Share your saved lists with friends
+
 Compare recommendations
+
 Discover new movies through your social circle
+
 🎲 Watch Party
 
 Movie Buff includes a collaborative Watch Party mode.
