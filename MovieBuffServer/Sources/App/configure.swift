@@ -21,9 +21,10 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(EnhanceComments())
     app.migrations.add(AddCommentSpoilerFlag())
 
-    if app.environment != .production {
-        try await app.autoMigrate()
-    }
+    // Always run pending migrations at boot. Fluent tracks which ones have already run,
+    // so re-applying is a no-op — safe in production and lets Render deploys migrate
+    // themselves without manual intervention.
+    try await app.autoMigrate()
 
     app.routes.defaultMaxBodySize = "1mb"
 
