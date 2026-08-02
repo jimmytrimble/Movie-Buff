@@ -1,0 +1,9 @@
+.build/
+.swiftpm/
+.git/
+.DS_Store
+Tests/
+docs/
+moviebuff.sqlite
+*.sqlite-shm
+*.sqlite-wal
