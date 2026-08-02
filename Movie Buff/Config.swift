@@ -1,9 +1,12 @@
 import Foundation
 
 enum Config {
-    // For iOS Simulator: "http://localhost:8080" works (simulator shares the Mac's loopback).
-    // For a real iPhone on the same Wi-Fi: replace with your Mac's LAN IP,
-    //     e.g. "http://192.168.1.42:8080".
-    // Find your Mac's IP with:  ipconfig getifaddr en0   (or System Settings → Wi-Fi)
-    static let apiBaseURL = URL(string: "http://192.168.23.79:8080")!
+    // Production — Render-hosted server. HTTPS, so no ATS exceptions required.
+    // Replace `YOUR-SERVICE` with the subdomain from your Render dashboard (looks like
+    // `movie-buff-XXXX.onrender.com` — copy from the top of the service page).
+    static let apiBaseURL = URL(string: "https://movie-buff-sm5m.onrender.com")!
+
+    // Local dev fallbacks (uncomment one when you're pointing at a laptop server):
+    //   iOS Simulator on your Mac:  URL(string: "http://localhost:8080")!
+    //   Real iPhone on same Wi-Fi:  URL(string: "http://192.168.23.79:8080")!
 }
