@@ -1,7 +1,7 @@
 # ================================
 # Build image
 # ================================
-FROM swift:5.10-noble AS build
+FROM swift:5.10-jammy AS build
 
 # Install jemalloc dev headers (needed by the `-ljemalloc` linker flag below).
 RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true && \
@@ -19,13 +19,9 @@ RUN swift package resolve $([ -f ./Package.resolved ] && echo "--force-resolved-
 # Copy the rest of the sources.
 COPY . .
 
-# Build the release binary with static Swift stdlib + jemalloc for smaller runtime images.
-# `-j 1` forces single-threaded compilation; multi-threaded C++ compiles of BoringSSL
-# routinely exceed 2 GB of RAM on Render's build hosts and get OOM-killed.
-RUN swift build -c release \
-                -j 1 \
-                --static-swift-stdlib \
-                -Xlinker -ljemalloc
+# Serial release build. Dropping --static-swift-stdlib halves the linker's peak RAM;
+# instead we ship the swift runtime via the swift:*-slim image below.
+RUN swift build -c release -j 1 -Xlinker -ljemalloc
 
 # Stage the artifacts we actually need to run.
 WORKDIR /staging
@@ -38,7 +34,7 @@ RUN [ -d /build/Resources ] && { mv /build/Resources ./Resources && chmod -R a-w
 # ================================
 # Run image
 # ================================
-FROM ubuntu:noble
+FROM swift:5.10-jammy-slim
 
 # Install runtime dependencies + drop root privileges.
 RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true && \
