@@ -20,10 +20,10 @@ RUN swift package resolve $([ -f ./Package.resolved ] && echo "--force-resolved-
 COPY . .
 
 # Build the release binary with static Swift stdlib + jemalloc for smaller runtime images.
-# `--jobs 1` forces single-threaded compilation; multi-threaded C++ compiles of BoringSSL
+# `-j 1` forces single-threaded compilation; multi-threaded C++ compiles of BoringSSL
 # routinely exceed 2 GB of RAM on Render's build hosts and get OOM-killed.
 RUN swift build -c release \
-                --jobs 1 \
+                -j 1 \
                 --static-swift-stdlib \
                 -Xlinker -ljemalloc
 
