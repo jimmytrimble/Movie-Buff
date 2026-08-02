@@ -3,6 +3,13 @@
 # ================================
 FROM swift:5.10-noble AS build
 
+# Install jemalloc dev headers (needed by the `-ljemalloc` linker flag below).
+RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true && \
+    apt-get -q update && \
+    apt-get -q dist-upgrade -y && \
+    apt-get -q install -y libjemalloc-dev && \
+    rm -r /var/lib/apt/lists/*
+
 WORKDIR /build
 
 # Resolve dependencies first so this layer is cached until Package.* changes.
@@ -13,7 +20,10 @@ RUN swift package resolve $([ -f ./Package.resolved ] && echo "--force-resolved-
 COPY . .
 
 # Build the release binary with static Swift stdlib + jemalloc for smaller runtime images.
+# `--jobs 1` forces single-threaded compilation; multi-threaded C++ compiles of BoringSSL
+# routinely exceed 2 GB of RAM on Render's build hosts and get OOM-killed.
 RUN swift build -c release \
+                --jobs 1 \
                 --static-swift-stdlib \
                 -Xlinker -ljemalloc
 
