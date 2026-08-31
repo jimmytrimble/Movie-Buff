@@ -3,11 +3,11 @@ import Fluent
 
 struct ReelsController: RouteCollection {
     func boot(routes: any RoutesBuilder) throws {
-        let protected = routes
-            .grouped(UserToken.authenticator(), User.guardMiddleware())
+        let premium = routes
+            .grouped(UserToken.authenticator(), User.guardMiddleware(), PremiumMiddleware())
             .grouped("reels")
 
-        protected.get(use: feed)
+        premium.get(use: feed)
     }
 
     @Sendable

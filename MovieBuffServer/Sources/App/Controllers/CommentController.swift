@@ -5,10 +5,10 @@ struct CommentController: RouteCollection {
     private let pageSize = 25
 
     func boot(routes: any RoutesBuilder) throws {
-        let protected = routes
-            .grouped(UserToken.authenticator(), User.guardMiddleware())
+        let premium = routes
+            .grouped(UserToken.authenticator(), User.guardMiddleware(), PremiumMiddleware())
 
-        let movieComments = protected.grouped("movies", ":imdbID", "comments")
+        let movieComments = premium.grouped("movies", ":imdbID", "comments")
         movieComments.get(use: list)
         movieComments.post(use: create)
         movieComments.delete(":commentID", use: delete)

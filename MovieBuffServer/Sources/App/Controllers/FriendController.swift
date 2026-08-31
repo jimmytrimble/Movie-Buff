@@ -3,9 +3,9 @@ import Fluent
 
 struct FriendController: RouteCollection {
     func boot(routes: any RoutesBuilder) throws {
-        let protected = routes.grouped(UserToken.authenticator(), User.guardMiddleware())
+        let premium = routes.grouped(UserToken.authenticator(), User.guardMiddleware(), PremiumMiddleware())
 
-        let friends = protected.grouped("friends")
+        let friends = premium.grouped("friends")
         friends.get(use: list)
         friends.get("search", use: searchUsers)
         friends.post("requests", use: sendRequest)
@@ -14,7 +14,7 @@ struct FriendController: RouteCollection {
         friends.get("users", ":userID", "movies", use: friendSavedMovies)
         friends.post("users", ":userID", "share", use: shareMovie)
 
-        let shares = protected.grouped("shares")
+        let shares = premium.grouped("shares")
         shares.get(use: listShares)
         shares.get("unread-count", use: unreadShareCount)
         shares.post(":shareID", "read", use: markShareRead)

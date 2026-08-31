@@ -454,6 +454,30 @@ struct ReelsService {
     }
 }
 
+struct SubscriptionService {
+    let client: APIClient
+    init(client: APIClient = .shared) { self.client = client }
+
+    /// Sends the StoreKit JWS transaction to the server for verification.
+    /// Server updates the user's subscription state and returns the fresh User.
+    func verifyApple(signedTransaction: String, productID: String) async throws -> User {
+        try await client.request(
+            path: "/me/subscription/apple/verify",
+            method: "POST",
+            body: VerifyAppleSubscriptionRequest(
+                signedTransaction: signedTransaction,
+                productID: productID
+            ),
+            authorized: true
+        )
+    }
+}
+
+struct VerifyAppleSubscriptionRequest: Codable {
+    let signedTransaction: String
+    let productID: String
+}
+
 struct CommentService {
     let client: APIClient
     init(client: APIClient = .shared) { self.client = client }

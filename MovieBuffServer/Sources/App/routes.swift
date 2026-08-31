@@ -12,6 +12,7 @@ func routes(_ app: Application) throws {
     try app.register(collection: WatchPartyController())
     try app.register(collection: ReelsController())
     try app.register(collection: CommentController())
+    try app.register(collection: SubscriptionController())
 }
 
 struct HealthResponse: Content {

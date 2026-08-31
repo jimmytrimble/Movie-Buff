@@ -3,18 +3,18 @@ import Fluent
 
 struct WatchPartyController: RouteCollection {
     func boot(routes: any RoutesBuilder) throws {
-        let protected = routes
-            .grouped(UserToken.authenticator(), User.guardMiddleware())
+        let premium = routes
+            .grouped(UserToken.authenticator(), User.guardMiddleware(), PremiumMiddleware())
             .grouped("watch-parties")
 
-        protected.get(use: listPending)
-        protected.post(use: start)
-        protected.get(":partyID", use: get)
-        protected.post(":partyID", "accept", use: accept)
-        protected.post(":partyID", "decline", use: decline)
-        protected.post(":partyID", "vote", use: vote)
-        protected.post(":partyID", "continue", use: continueSwiping)
-        protected.delete(":partyID", use: end)
+        premium.get(use: listPending)
+        premium.post(use: start)
+        premium.get(":partyID", use: get)
+        premium.post(":partyID", "accept", use: accept)
+        premium.post(":partyID", "decline", use: decline)
+        premium.post(":partyID", "vote", use: vote)
+        premium.post(":partyID", "continue", use: continueSwiping)
+        premium.delete(":partyID", use: end)
     }
 
     // MARK: - Listing

@@ -23,6 +23,7 @@ struct MovieDetailView: View {
     @State private var showingShareSheet = false
     @State private var showingReviews = false
     @State private var showingGuestPrompt = false
+    @State private var showingPaywall = false
     @State private var showingTrailer = false
 
     private let service = MovieService()
@@ -52,7 +53,7 @@ struct MovieDetailView: View {
             if detail != nil {
                 ToolbarItem(placement: .automatic) {
                     Button {
-                        showingReviews = true
+                        if premiumGate() { showingReviews = true }
                     } label: {
                         Image(systemName: "bubble.left.and.bubble.right.fill")
                             .foregroundStyle(Theme.accent)
@@ -60,7 +61,7 @@ struct MovieDetailView: View {
                 }
                 ToolbarItem(placement: .automatic) {
                     Button {
-                        showingShareSheet = true
+                        if premiumGate() { showingShareSheet = true }
                     } label: {
                         Image(systemName: "square.and.arrow.up")
                             .foregroundStyle(Theme.accent)
@@ -91,7 +92,10 @@ struct MovieDetailView: View {
             Button("Sign In") { auth.exitGuestMode() }
             Button("Not Now", role: .cancel) {}
         } message: {
-            Text("Create a free account to save movies and access more features.")
+            Text("Create a free account to unlock premium features.")
+        }
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView(reason: "Unlock the full Movie Buff experience.")
         }
         #if os(iOS)
         .sheet(isPresented: $showingTrailer) {
@@ -144,6 +148,8 @@ struct MovieDetailView: View {
             Button {
                 if auth.isGuest {
                     showingGuestPrompt = true
+                } else if !auth.isPremium {
+                    showingPaywall = true
                 } else {
                     Task { await toggleSave() }
                 }
@@ -304,16 +310,31 @@ struct MovieDetailView: View {
         sourcesState = .loading
         defer { isLoading = false }
         do {
-            async let detailTask = service.detail(imdbID: imdbID)
-            async let savedTask = service.savedMovies()
-            let (loaded, saved) = try await (detailTask, savedTask)
+            let loaded = try await service.detail(imdbID: imdbID)
             detail = loaded
-            isSaved = saved.contains { $0.imdbID == imdbID }
             sourcesState = .loaded(loaded.streaming ?? [])
         } catch {
             errorMessage = error.localizedDescription
             sourcesState = .failed
         }
+        // Saved-list check is premium-only; only ask the server when it'd succeed.
+        if auth.isPremium, let saved = try? await service.savedMovies() {
+            isSaved = saved.contains { $0.imdbID == imdbID }
+        }
+    }
+
+    /// Routes non-premium users to the right upsell. Returns true if the caller
+    /// can proceed with the premium action.
+    private func premiumGate() -> Bool {
+        if auth.isGuest {
+            showingGuestPrompt = true
+            return false
+        }
+        if !auth.isPremium {
+            showingPaywall = true
+            return false
+        }
+        return true
     }
 
     private func toggleSave() async {

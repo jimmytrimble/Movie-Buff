@@ -108,10 +108,10 @@ struct FriendsView: View {
         ZStack {
             Theme.backgroundGradient.ignoresSafeArea()
 
-            if auth.isGuest {
+            if !auth.isPremium {
                 ScrollView {
-                    GuestSignInPrompt(
-                        title: "Sign in to add friends",
+                    PremiumUpsell(
+                        title: auth.isGuest ? "Sign in to add friends" : "Premium unlocks Friends",
                         message: "Share movies, get recommendations, and start watch parties with friends."
                     )
                 }
@@ -247,10 +247,10 @@ struct FriendsView: View {
             }
         }
         .task {
-            if !auth.isGuest { await notifications.refresh() }
+            if auth.isPremium { await notifications.refresh() }
         }
         .task(id: trimmedQuery) {
-            if !auth.isGuest { await runSearch() }
+            if auth.isPremium { await runSearch() }
         }
         #if os(iOS)
         .task { await push.refreshAuthorizationStatus() }

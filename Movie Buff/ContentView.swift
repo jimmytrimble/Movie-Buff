@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var auth = AuthStore()
+    @State private var subscriptions = SubscriptionStore()
     #if os(iOS)
     @Environment(PushCoordinator.self) private var push
     #endif
@@ -15,8 +16,20 @@ struct ContentView: View {
             }
         }
         .environment(auth)
+        .environment(subscriptions)
         .preferredColorScheme(.dark)
-        .task { await auth.restore() }
+        .task {
+            await auth.restore()
+            // Kick off StoreKit listeners. Any renewal/refund/family-sharing event
+            // will POST the fresh transaction to our server and refresh the User.
+            subscriptions.start {
+                await auth.refreshUser()
+            }
+            // Sync existing entitlements on launch so a purchase made on another
+            // device (or before signing in) is reflected in `isPremium`.
+            await subscriptions.syncCurrentEntitlements()
+            await auth.refreshUser()
+        }
         #if os(iOS)
         .sheet(item: pendingSheetBinding) { item in
             NavigationStack {

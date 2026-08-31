@@ -4,6 +4,9 @@ struct User: Codable, Identifiable, Hashable {
     let id: UUID?
     let email: String
     let displayName: String?
+    let isPremium: Bool?
+    let subscriptionExpiresAt: Date?
+    let subscriptionProvider: String?
 }
 
 struct RegisterRequest: Codable {

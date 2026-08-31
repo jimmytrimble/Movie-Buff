@@ -34,7 +34,21 @@ struct HomeView: View {
                 .tabItem { Label("Browse", systemImage: "film.circle") }
                 .toolbarBackground(Theme.background, for: .tabBar)
                 .toolbarBackground(.visible, for: .tabBar)
-            NavigationStack { ReelsView() }
+            NavigationStack {
+                if auth.isPremium {
+                    ReelsView()
+                } else {
+                    ZStack {
+                        Theme.backgroundGradient.ignoresSafeArea()
+                        ScrollView {
+                            PremiumUpsell(
+                                title: auth.isGuest ? "Sign in to watch Reels" : "Premium unlocks Reels",
+                                message: "Swipe through trailers picked for your taste."
+                            )
+                        }
+                    }
+                }
+            }
                 .tabItem { Label("Reels", systemImage: "play.house") }
                 .toolbarBackground(Theme.background, for: .tabBar)
                 .toolbarBackground(.visible, for: .tabBar)
@@ -52,7 +66,7 @@ struct HomeView: View {
         .environment(notifications)
         .environment(browseFeed)
         .task {
-            if !auth.isGuest { await notifications.refresh() }
+            if auth.isPremium { await notifications.refresh() }
         }
     }
 }
@@ -478,10 +492,12 @@ struct SavedView: View {
             Theme.backgroundGradient.ignoresSafeArea()
 
             ScrollView {
-                if auth.isGuest {
-                    GuestSignInPrompt(
-                        title: "Sign in to save movies",
-                        message: "Your saved list stays with your account so it's there whenever you sign in."
+                if !auth.isPremium {
+                    PremiumUpsell(
+                        title: auth.isGuest ? "Sign in to save movies" : "Premium unlocks Saved",
+                        message: auth.isGuest
+                            ? "Your saved list stays with your account so it's there whenever you sign in."
+                            : "Keep every movie you want to watch in one place, in sync across your devices."
                     )
                 } else if isLoading && movies.isEmpty {
                     ProgressView().padding(.top, 100).tint(Theme.accent)
@@ -540,13 +556,13 @@ struct SavedView: View {
             }
         }
         .refreshable {
-            if !auth.isGuest { await load() }
+            if auth.isPremium { await load() }
         }
         .navigationDestination(for: MovieSummary.self) { movie in
             MovieDetailView(imdbID: movie.imdbID)
         }
         .task {
-            if !auth.isGuest { await load() }
+            if auth.isPremium { await load() }
         }
     }
 
@@ -562,14 +578,22 @@ struct SavedView: View {
     }
 }
 
-struct GuestSignInPrompt: View {
+/// Full-screen prompt shown when a feature is unavailable. Handles both cases:
+/// - Guest → prompts sign-in (routes to `AuthView`).
+/// - Signed-in free → presents the paywall.
+struct PremiumUpsell: View {
     @Environment(AuthStore.self) private var auth
+    @Environment(SubscriptionStore.self) private var subscriptions
+    @State private var showingPaywall = false
+
     let title: String
     let message: String
 
+    private var isGuest: Bool { auth.isGuest }
+
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "lock.circle.fill")
+            Image(systemName: isGuest ? "lock.circle.fill" : "star.circle.fill")
                 .font(.system(size: 64))
                 .foregroundStyle(Theme.gold)
             Text(title)
@@ -583,9 +607,13 @@ struct GuestSignInPrompt: View {
                 .padding(.horizontal, 32)
 
             Button {
-                auth.exitGuestMode()
+                if isGuest {
+                    auth.exitGuestMode()
+                } else {
+                    showingPaywall = true
+                }
             } label: {
-                Text("Sign In or Create Account")
+                Text(isGuest ? "Sign In or Create Account" : "Start Premium")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -602,8 +630,17 @@ struct GuestSignInPrompt: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 80)
         .padding(.bottom, 40)
+        .sheet(isPresented: $showingPaywall) {
+            PaywallView(reason: message)
+                .environment(auth)
+                .environment(subscriptions)
+        }
     }
 }
+
+/// Back-compat alias so existing call sites keep compiling. Delete once every
+/// call site has migrated to `PremiumUpsell`.
+typealias GuestSignInPrompt = PremiumUpsell
 
 struct MoviePosterCard: View {
     let movie: MovieSummary

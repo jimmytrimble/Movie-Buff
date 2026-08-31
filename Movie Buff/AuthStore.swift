@@ -55,6 +55,8 @@ final class AuthStore {
 
     var isAuthenticated: Bool { token != nil || isGuest }
     var isSignedIn: Bool { token != nil }
+    /// Signed-in AND actively subscribed. Free users and guests both return false.
+    var isPremium: Bool { user?.isPremium == true }
 
     init(authService: AuthService? = nil) {
         self.authService = authService ?? AuthService()
@@ -117,6 +119,17 @@ final class AuthStore {
     func logout() async {
         do { try await authService.logout() } catch {}
         await signOutLocal()
+    }
+
+    /// Re-fetches the current user from the server. Used after a subscription
+    /// purchase to pick up the new `isPremium` state.
+    func refreshUser() async {
+        guard token != nil else { return }
+        do {
+            self.user = try await authService.me()
+        } catch {
+            // Silent — we'll just keep the last known state.
+        }
     }
 
     func updateProfile(

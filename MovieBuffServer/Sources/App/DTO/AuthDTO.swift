@@ -23,12 +23,26 @@ struct UserDTO: Content {
     let id: UUID
     let email: String
     let displayName: String
+    let isPremium: Bool
+    let subscriptionExpiresAt: Date?
+    let subscriptionProvider: String?
 
     init(_ user: User) throws {
         self.id = try user.requireID()
         self.email = user.email
         self.displayName = user.displayName
+        self.isPremium = user.isPremium
+        self.subscriptionExpiresAt = user.subscriptionExpiresAt
+        self.subscriptionProvider = user.subscriptionProvider
     }
+}
+
+/// Sent by the iOS client after a successful StoreKit purchase. Carries the
+/// signed JWS transaction produced by StoreKit 2 so the server can extract
+/// and persist the subscription's expiration.
+struct VerifyAppleSubscriptionRequest: Content {
+    let signedTransaction: String
+    let productID: String
 }
 
 struct UpdateProfileRequest: Content {

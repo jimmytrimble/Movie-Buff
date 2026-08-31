@@ -5,13 +5,17 @@ struct MovieController: RouteCollection {
     func boot(routes: any RoutesBuilder) throws {
         let protected = routes.grouped(UserToken.authenticator(), User.guardMiddleware())
 
+        // Free tier: browsing, searching, and viewing details are always available
+        // to any signed-in user (even without a subscription).
         let movies = protected.grouped("movies")
         movies.get("search", use: search)
         movies.get("browse", use: browse)
         movies.get("categories", use: categories)
         movies.get(":imdbID", use: detail)
 
-        let myMovies = protected.grouped("me", "movies")
+        // Premium: saved-list read/write requires a subscription.
+        let premium = protected.grouped(PremiumMiddleware())
+        let myMovies = premium.grouped("me", "movies")
         myMovies.get(use: list)
         myMovies.post(use: save)
         myMovies.delete(":imdbID", use: unsave)
