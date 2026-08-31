@@ -2,6 +2,7 @@ import Vapor
 import Fluent
 import FluentSQLiteDriver
 import FluentPostgresDriver
+import NIOSSL
 import APNS
 import APNSCore
 import VaporAPNS
@@ -39,16 +40,37 @@ public func configure(_ app: Application) async throws {
 }
 
 private func configureDatabase(_ app: Application) throws {
-    if let urlString = Environment.get("DATABASE_URL"),
-       let url = URL(string: urlString),
-       url.scheme?.lowercased().hasPrefix("postgres") == true {
-        let config = try SQLPostgresConfiguration(url: url)
-        app.databases.use(.postgres(configuration: config), as: .psql)
-        app.logger.info("Using Postgres database from DATABASE_URL.")
-    } else {
+    guard let urlString = Environment.get("DATABASE_URL"),
+          let url = URL(string: urlString),
+          url.scheme?.lowercased().hasPrefix("postgres") == true else {
         app.databases.use(.sqlite(.file("moviebuff.sqlite")), as: .sqlite)
         app.logger.info("Using local SQLite database (moviebuff.sqlite).")
+        return
     }
+
+    guard let host = url.host, let user = url.user else {
+        throw Abort(.internalServerError, reason: "DATABASE_URL is malformed (missing host or user).")
+    }
+    let port = url.port ?? 5432
+    let password = url.password
+    let database = url.path.hasPrefix("/") ? String(url.path.dropFirst()) : url.path
+
+    // Render's managed Postgres presents a cert that isn't in the container's trust store,
+    // so full verification fails. TLS is still on — we just skip chain + hostname verification.
+    var tlsConfig = TLSConfiguration.makeClientConfiguration()
+    tlsConfig.certificateVerification = .none
+    let sslContext = try NIOSSLContext(configuration: tlsConfig)
+
+    let config = SQLPostgresConfiguration(
+        hostname: host,
+        port: port,
+        username: user,
+        password: password,
+        database: database.isEmpty ? nil : database,
+        tls: .prefer(sslContext)
+    )
+    app.databases.use(.postgres(configuration: config), as: .psql)
+    app.logger.info("Using Postgres database from DATABASE_URL (TLS preferred, unverified cert).")
 }
 
 private func configureAPNS(_ app: Application) throws {

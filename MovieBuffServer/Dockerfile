@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # ================================
 # Build image
 # ================================
@@ -13,23 +15,32 @@ RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true && \
 WORKDIR /build
 
 # Resolve dependencies first so this layer is cached until Package.* changes.
+# BuildKit cache mounts persist /build/.build and ~/.swiftpm across deploys, so
+# unchanged packages (BoringSSL, NIO, etc.) skip recompilation on subsequent builds.
 COPY ./Package.* ./
-RUN swift package resolve $([ -f ./Package.resolved ] && echo "--force-resolved-versions" || true)
+RUN --mount=type=cache,target=/build/.build \
+    --mount=type=cache,target=/root/.swiftpm \
+    swift package resolve $([ -f ./Package.resolved ] && echo "--force-resolved-versions" || true)
 
 # Copy the rest of the sources.
 COPY . .
 
-# Serial release build. Dropping --static-swift-stdlib halves the linker's peak RAM;
+# Build AND stage artifacts in a single RUN so the cache mount is live for both
+# the build and the cp steps that follow (BuildKit tears down cache mounts
+# between RUNs). Dropping --static-swift-stdlib halves the linker's peak RAM;
 # instead we ship the swift runtime via the swift:*-slim image below.
-RUN swift build -c release -j 1 -Xlinker -ljemalloc
-
-# Stage the artifacts we actually need to run.
-WORKDIR /staging
-RUN cp "$(swift build --package-path /build -c release --show-bin-path)/App" ./
-RUN cp "/usr/libexec/swift/linux/swift-backtrace-static" ./
-RUN find -L "$(swift build --package-path /build -c release --show-bin-path)/" -regex '.*\.resources$' -exec cp -Ra {} ./ \;
-RUN [ -d /build/Public ] && { mv /build/Public ./Public && chmod -R a-w ./Public; } || true
-RUN [ -d /build/Resources ] && { mv /build/Resources ./Resources && chmod -R a-w ./Resources; } || true
+# --disable-index-store skips index-store generation (~10% faster, only useful
+# for IDEs which don't apply on Render).
+RUN --mount=type=cache,target=/build/.build \
+    --mount=type=cache,target=/root/.swiftpm \
+    swift build -c release -j 1 -Xlinker -ljemalloc --disable-index-store && \
+    mkdir -p /staging && \
+    BIN_PATH="$(swift build --package-path /build -c release --show-bin-path)" && \
+    cp "$BIN_PATH/App" /staging/ && \
+    cp /usr/libexec/swift/linux/swift-backtrace-static /staging/ && \
+    find -L "$BIN_PATH/" -regex '.*\.resources$' -exec cp -Ra {} /staging/ \; && \
+    { [ -d /build/Public ]    && { cp -R /build/Public    /staging/Public;    chmod -R a-w /staging/Public;    } || true; } && \
+    { [ -d /build/Resources ] && { cp -R /build/Resources /staging/Resources; chmod -R a-w /staging/Resources; } || true; }
 
 # ================================
 # Run image
