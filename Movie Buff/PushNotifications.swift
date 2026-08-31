@@ -48,8 +48,8 @@ final class PushCoordinator {
         }
     }
 
-    func handleNotificationTap(userInfo: [AnyHashable: Any]) {
-        if let imdbID = userInfo["imdbID"] as? String, !imdbID.isEmpty {
+    func handleNotificationTap(imdbID: String?) {
+        if let imdbID, !imdbID.isEmpty {
             pendingImdbID = imdbID
         }
     }
@@ -141,9 +141,9 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        let userInfo = response.notification.request.content.userInfo
+        let imdbID = response.notification.request.content.userInfo["imdbID"] as? String
         await MainActor.run {
-            PushCoordinator.shared.handleNotificationTap(userInfo: userInfo)
+            PushCoordinator.shared.handleNotificationTap(imdbID: imdbID)
         }
     }
 }

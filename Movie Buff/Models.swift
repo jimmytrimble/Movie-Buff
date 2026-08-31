@@ -368,6 +368,7 @@ struct MovieDetail: Codable, Identifiable, Hashable {
     let imdbID: String
     let streaming: [StreamingSource]?
     let genres: [String]?
+    let trailerYouTubeKey: String?
 
     var id: String { imdbID }
 
@@ -387,6 +388,7 @@ struct MovieDetail: Codable, Identifiable, Hashable {
         case imdbID
         case streaming
         case genres
+        case trailerYouTubeKey
     }
 
     var posterURL: URL? {

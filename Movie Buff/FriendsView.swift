@@ -108,6 +108,14 @@ struct FriendsView: View {
         ZStack {
             Theme.backgroundGradient.ignoresSafeArea()
 
+            if auth.isGuest {
+                ScrollView {
+                    GuestSignInPrompt(
+                        title: "Sign in to add friends",
+                        message: "Share movies, get recommendations, and start watch parties with friends."
+                    )
+                }
+            } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     #if os(iOS)
@@ -184,6 +192,7 @@ struct FriendsView: View {
                 .padding()
             }
             .refreshable { await notifications.refresh() }
+            }
         }
         .navigationTitle("")
         #if os(iOS)
@@ -237,8 +246,12 @@ struct FriendsView: View {
                 WatchPartySwipeView(party: party, currentUserID: uid)
             }
         }
-        .task { await notifications.refresh() }
-        .task(id: trimmedQuery) { await runSearch() }
+        .task {
+            if !auth.isGuest { await notifications.refresh() }
+        }
+        .task(id: trimmedQuery) {
+            if !auth.isGuest { await runSearch() }
+        }
         #if os(iOS)
         .task { await push.refreshAuthorizationStatus() }
         #endif

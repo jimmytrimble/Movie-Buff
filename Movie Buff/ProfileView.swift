@@ -42,54 +42,14 @@ struct ProfileView: View {
             ZStack {
                 Theme.backgroundGradient.ignoresSafeArea()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 22) {
-                        profileHeader
-
-                        section(title: "Account") {
-                            fieldLabel("Email")
-                            emailField
-                            fieldLabel("Display Name")
-                            nameField
-                        }
-
-                        section(title: "Change Password") {
-                            Text("Leave blank to keep your current password.")
-                                .font(.caption)
-                                .foregroundStyle(.white.opacity(0.5))
-                            fieldLabel("Current Password")
-                            SecureField("", text: $currentPassword,
-                                        prompt: Text("Current").foregroundColor(.gray))
-                                .modifier(ProfileFieldStyle())
-                            fieldLabel("New Password (min 8)")
-                            SecureField("", text: $newPassword,
-                                        prompt: Text("New").foregroundColor(.gray))
-                                .modifier(ProfileFieldStyle(highlight: passwordTooShort))
-                            if passwordTooShort {
-                                hint("New password must be at least 8 characters.")
-                            }
-                            fieldLabel("Confirm New Password")
-                            SecureField("", text: $confirmPassword,
-                                        prompt: Text("Confirm").foregroundColor(.gray))
-                                .modifier(ProfileFieldStyle(highlight: passwordMismatch))
-                            if passwordMismatch {
-                                hint("Passwords do not match.")
-                            }
-                        }
-
-                        if let successMessage {
-                            banner(text: successMessage, color: .green)
-                        }
-                        if let errorMessage {
-                            banner(text: errorMessage, color: .red)
-                        }
-
-                        signOutButton
-                            .padding(.top, 8)
+                    if auth.isGuest {
+                        guestPromptView
+                    } else {
+                        signedInProfileView
                     }
-                    .padding()
                 }
             }
-            .navigationTitle("Edit Profile")
+            .navigationTitle(auth.isGuest ? "Account" : "Edit Profile")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -98,17 +58,19 @@ struct ProfileView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(auth.isGuest ? "Close" : "Cancel") { dismiss() }
                         .foregroundStyle(.white.opacity(0.7))
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        Task { await save() }
-                    } label: {
-                        if isSaving { ProgressView().tint(Theme.accent) }
-                        else { Text("Save").foregroundStyle(Theme.accent) }
+                if !auth.isGuest {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button {
+                            Task { await save() }
+                        } label: {
+                            if isSaving { ProgressView().tint(Theme.accent) }
+                            else { Text("Save").foregroundStyle(Theme.accent) }
+                        }
+                        .disabled(!canSave)
                     }
-                    .disabled(!canSave)
                 }
             }
             .onAppear {
@@ -116,6 +78,93 @@ struct ProfileView: View {
                 if displayName.isEmpty { displayName = currentDisplayName }
             }
         }
+    }
+
+    private var signedInProfileView: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            profileHeader
+
+            section(title: "Account") {
+                fieldLabel("Email")
+                emailField
+                fieldLabel("Display Name")
+                nameField
+            }
+
+            section(title: "Change Password") {
+                Text("Leave blank to keep your current password.")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.5))
+                fieldLabel("Current Password")
+                SecureField("", text: $currentPassword,
+                            prompt: Text("Current").foregroundColor(.gray))
+                    .modifier(ProfileFieldStyle())
+                fieldLabel("New Password (min 8)")
+                SecureField("", text: $newPassword,
+                            prompt: Text("New").foregroundColor(.gray))
+                    .modifier(ProfileFieldStyle(highlight: passwordTooShort))
+                if passwordTooShort {
+                    hint("New password must be at least 8 characters.")
+                }
+                fieldLabel("Confirm New Password")
+                SecureField("", text: $confirmPassword,
+                            prompt: Text("Confirm").foregroundColor(.gray))
+                    .modifier(ProfileFieldStyle(highlight: passwordMismatch))
+                if passwordMismatch {
+                    hint("Passwords do not match.")
+                }
+            }
+
+            if let successMessage {
+                banner(text: successMessage, color: .green)
+            }
+            if let errorMessage {
+                banner(text: errorMessage, color: .red)
+            }
+
+            signOutButton
+                .padding(.top, 8)
+        }
+        .padding()
+    }
+
+    private var guestPromptView: some View {
+        VStack(spacing: 18) {
+            Image(systemName: "person.crop.circle.badge.questionmark")
+                .font(.system(size: 64))
+                .foregroundStyle(Theme.gold)
+                .padding(.top, 32)
+            Text("You're browsing as a guest")
+                .font(.sectionTitle)
+                .foregroundStyle(.white)
+            Text("Create an account to save movies, add friends, and post comments.")
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.6))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
+            Button {
+                Task {
+                    auth.exitGuestMode()
+                    dismiss()
+                }
+            } label: {
+                Text("Sign In or Create Account")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        LinearGradient(colors: [Theme.gold, Theme.goldSoft],
+                                       startPoint: .leading, endPoint: .trailing),
+                        in: RoundedRectangle(cornerRadius: 12)
+                    )
+                    .foregroundStyle(.black)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 8)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
     }
 
     private var profileHeader: some View {

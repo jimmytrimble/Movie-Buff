@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import WebKit
+#endif
 
 struct MovieDetailView: View {
     let imdbID: String
@@ -9,6 +12,8 @@ struct MovieDetailView: View {
         case failed
     }
 
+    @Environment(AuthStore.self) private var auth
+
     @State private var detail: MovieDetail?
     @State private var sourcesState: SourcesState = .loading
     @State private var isLoading = true
@@ -17,6 +22,8 @@ struct MovieDetailView: View {
     @State private var errorMessage: String?
     @State private var showingShareSheet = false
     @State private var showingReviews = false
+    @State private var showingGuestPrompt = false
+    @State private var showingTrailer = false
 
     private let service = MovieService()
 
@@ -80,6 +87,19 @@ struct MovieDetailView: View {
                 )
             }
         }
+        .alert("Sign in required", isPresented: $showingGuestPrompt) {
+            Button("Sign In") { auth.exitGuestMode() }
+            Button("Not Now", role: .cancel) {}
+        } message: {
+            Text("Create a free account to save movies and access more features.")
+        }
+        #if os(iOS)
+        .sheet(isPresented: $showingTrailer) {
+            if let key = detail?.trailerYouTubeKey {
+                TrailerPlayerSheet(youTubeKey: key)
+            }
+        }
+        #endif
         .task { await load() }
     }
 
@@ -117,7 +137,11 @@ struct MovieDetailView: View {
             .font(.subheadline)
 
             Button {
-                Task { await toggleSave() }
+                if auth.isGuest {
+                    showingGuestPrompt = true
+                } else {
+                    Task { await toggleSave() }
+                }
             } label: {
                 HStack {
                     if isMutating {
@@ -135,6 +159,25 @@ struct MovieDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             }
             .disabled(isMutating)
+
+            if let trailerKey = detail.trailerYouTubeKey, !trailerKey.isEmpty {
+                Button {
+                    showingTrailer = true
+                } label: {
+                    HStack {
+                        Image(systemName: "play.circle.fill")
+                        Text("Watch Trailer")
+                    }
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .foregroundStyle(Theme.gold)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Theme.gold.opacity(0.6), lineWidth: 1)
+                    )
+                }
+            }
 
             streamingSection
 
@@ -340,3 +383,76 @@ private struct InfoRow: View {
         }
     }
 }
+#if os(iOS)
+private struct TrailerPlayerSheet: View {
+    let youTubeKey: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            YouTubeEmbedView(youTubeKey: youTubeKey)
+                .ignoresSafeArea(edges: .bottom)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbarBackground(Theme.background, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+                .toolbarColorScheme(.dark, for: .navigationBar)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { dismiss() }
+                            .foregroundStyle(Theme.accent)
+                    }
+                    ToolbarItem(placement: .principal) {
+                        Text("Trailer")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                    }
+                }
+        }
+        .presentationDetents([.large])
+        .preferredColorScheme(.dark)
+    }
+}
+
+private struct YouTubeEmbedView: UIViewRepresentable {
+    let youTubeKey: String
+
+    func makeUIView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.allowsInlineMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.isOpaque = false
+        webView.backgroundColor = .black
+        webView.scrollView.backgroundColor = .black
+        webView.scrollView.isScrollEnabled = false
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        let html = """
+        <!doctype html>
+        <html>
+        <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+        <style>
+        html,body { margin:0; padding:0; background:#000; height:100%; }
+        .wrap { position:relative; width:100%; height:100%; }
+        iframe { position:absolute; top:0; left:0; width:100%; height:100%; border:0; }
+        </style>
+        </head>
+        <body>
+        <div class="wrap">
+        <iframe
+          src="https://www.youtube.com/embed/\(youTubeKey)?playsinline=1&rel=0&modestbranding=1"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowfullscreen>
+        </iframe>
+        </div>
+        </body>
+        </html>
+        """
+        webView.loadHTMLString(html, baseURL: URL(string: "https://www.youtube.com"))
+    }
+}
+#endif
+

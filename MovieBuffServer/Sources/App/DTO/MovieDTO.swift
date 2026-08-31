@@ -112,6 +112,7 @@ struct MovieDetailResponse: Content {
     let imdbRating: String?
     let streaming: [StreamingOption]
     let genres: [String]
+    let trailerYouTubeKey: String?
 
     enum CodingKeys: String, CodingKey {
         case imdbID
@@ -132,9 +133,15 @@ struct MovieDetailResponse: Content {
         case imdbRating
         case streaming
         case genres
+        case trailerYouTubeKey
     }
 
-    init(from omdb: OMDBMovieDetail, streaming: [StreamingOption], genres: [String]) {
+    init(
+        from omdb: OMDBMovieDetail,
+        streaming: [StreamingOption],
+        genres: [String],
+        trailerYouTubeKey: String? = nil
+    ) {
         self.imdbID = omdb.imdbID
         self.title = omdb.title
         self.year = omdb.year
@@ -153,6 +160,7 @@ struct MovieDetailResponse: Content {
         self.imdbRating = omdb.imdbRating
         self.streaming = streaming
         self.genres = genres
+        self.trailerYouTubeKey = trailerYouTubeKey
     }
 }
 

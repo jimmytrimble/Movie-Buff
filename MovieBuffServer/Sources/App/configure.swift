@@ -1,13 +1,14 @@
 import Vapor
 import Fluent
 import FluentSQLiteDriver
+import FluentPostgresDriver
 import APNS
 import APNSCore
 import VaporAPNS
 import Crypto
 
 public func configure(_ app: Application) async throws {
-    app.databases.use(.sqlite(.file("moviebuff.sqlite")), as: .sqlite)
+    try configureDatabase(app)
 
     app.migrations.add(CreateUser())
     app.migrations.add(CreateUserToken())
@@ -35,6 +36,19 @@ public func configure(_ app: Application) async throws {
 
     try configureAPNS(app)
     try routes(app)
+}
+
+private func configureDatabase(_ app: Application) throws {
+    if let urlString = Environment.get("DATABASE_URL"),
+       let url = URL(string: urlString),
+       url.scheme?.lowercased().hasPrefix("postgres") == true {
+        let config = try SQLPostgresConfiguration(url: url)
+        app.databases.use(.postgres(configuration: config), as: .psql)
+        app.logger.info("Using Postgres database from DATABASE_URL.")
+    } else {
+        app.databases.use(.sqlite(.file("moviebuff.sqlite")), as: .sqlite)
+        app.logger.info("Using local SQLite database (moviebuff.sqlite).")
+    }
 }
 
 private func configureAPNS(_ app: Application) throws {

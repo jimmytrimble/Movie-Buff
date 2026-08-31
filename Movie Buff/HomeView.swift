@@ -24,6 +24,7 @@ extension Font {
 }
 
 struct HomeView: View {
+    @Environment(AuthStore.self) private var auth
     @State private var notifications = NotificationsStore()
 
     var body: some View {
@@ -48,7 +49,9 @@ struct HomeView: View {
         }
         .tint(Theme.accent)
         .environment(notifications)
-        .task { await notifications.refresh() }
+        .task {
+            if !auth.isGuest { await notifications.refresh() }
+        }
     }
 }
 
@@ -413,6 +416,7 @@ private struct CategoryChip: View {
 }
 
 struct SavedView: View {
+    @Environment(AuthStore.self) private var auth
     @State private var movies: [SavedMovie] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -426,7 +430,12 @@ struct SavedView: View {
             Theme.backgroundGradient.ignoresSafeArea()
 
             ScrollView {
-                if isLoading && movies.isEmpty {
+                if auth.isGuest {
+                    GuestSignInPrompt(
+                        title: "Sign in to save movies",
+                        message: "Your saved list stays with your account so it's there whenever you sign in."
+                    )
+                } else if isLoading && movies.isEmpty {
                     ProgressView().padding(.top, 100).tint(Theme.accent)
                 } else if movies.isEmpty {
                     VStack(spacing: 14) {
@@ -482,11 +491,15 @@ struct SavedView: View {
                 }
             }
         }
-        .refreshable { await load() }
+        .refreshable {
+            if !auth.isGuest { await load() }
+        }
         .navigationDestination(for: MovieSummary.self) { movie in
             MovieDetailView(imdbID: movie.imdbID)
         }
-        .task { await load() }
+        .task {
+            if !auth.isGuest { await load() }
+        }
     }
 
     private func load() async {
@@ -498,6 +511,49 @@ struct SavedView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+struct GuestSignInPrompt: View {
+    @Environment(AuthStore.self) private var auth
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "lock.circle.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(Theme.gold)
+            Text(title)
+                .font(.sectionTitle)
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.6))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
+            Button {
+                auth.exitGuestMode()
+            } label: {
+                Text("Sign In or Create Account")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        LinearGradient(colors: [Theme.gold, Theme.goldSoft],
+                                       startPoint: .leading, endPoint: .trailing),
+                        in: RoundedRectangle(cornerRadius: 12)
+                    )
+                    .foregroundStyle(.black)
+            }
+            .padding(.horizontal, 32)
+            .padding(.top, 8)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 80)
+        .padding(.bottom, 40)
     }
 }
 

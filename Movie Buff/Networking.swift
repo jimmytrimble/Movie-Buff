@@ -18,11 +18,13 @@ enum APIError: LocalizedError {
     }
 }
 
-struct EmptyResponse: Codable {}
+struct EmptyResponse: Codable {
+    nonisolated init() {}
+}
 
 private struct AnyEncodable: Encodable {
-    let wrapped: any Encodable
-    func encode(to encoder: Encoder) throws {
+    nonisolated let wrapped: any Encodable
+    nonisolated func encode(to encoder: Encoder) throws {
         try wrapped.encode(to: encoder)
     }
 }

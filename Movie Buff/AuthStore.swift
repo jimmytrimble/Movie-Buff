@@ -45,30 +45,49 @@ enum KeychainHelper {
 final class AuthStore {
     private(set) var user: User?
     private(set) var token: String?
+    private(set) var isGuest = false
     var isLoading = false
     var errorMessage: String?
 
     private let authService: AuthService
     private let tokenKey = "auth_token"
+    private let guestKey = "auth_guest_mode"
 
-    var isAuthenticated: Bool { token != nil }
+    var isAuthenticated: Bool { token != nil || isGuest }
+    var isSignedIn: Bool { token != nil }
 
-    init(authService: AuthService = AuthService()) {
-        self.authService = authService
+    init(authService: AuthService? = nil) {
+        self.authService = authService ?? AuthService()
     }
 
     func restore() async {
-        guard let saved = KeychainHelper.read(key: tokenKey) else { return }
-        self.token = saved
-        await APIClient.shared.setAuthToken(saved)
-        do {
-            self.user = try await authService.me()
-            #if os(iOS)
-            await PushCoordinator.shared.handleLogin()
-            #endif
-        } catch {
-            await signOutLocal()
+        if let saved = KeychainHelper.read(key: tokenKey) {
+            self.token = saved
+            await APIClient.shared.setAuthToken(saved)
+            do {
+                self.user = try await authService.me()
+                #if os(iOS)
+                await PushCoordinator.shared.handleLogin()
+                #endif
+            } catch {
+                await signOutLocal()
+            }
+            return
         }
+        if KeychainHelper.read(key: guestKey) != nil {
+            self.isGuest = true
+        }
+    }
+
+    func continueAsGuest() {
+        isGuest = true
+        errorMessage = nil
+        KeychainHelper.save("1", for: guestKey)
+    }
+
+    func exitGuestMode() {
+        isGuest = false
+        KeychainHelper.delete(key: guestKey)
     }
 
     func login(identifier: String, password: String) async {
@@ -127,6 +146,8 @@ final class AuthStore {
     private func apply(_ response: AuthResponse) async {
         self.token = response.token
         self.user = response.user
+        self.isGuest = false
+        KeychainHelper.delete(key: guestKey)
         KeychainHelper.save(response.token, for: tokenKey)
         await APIClient.shared.setAuthToken(response.token)
         #if os(iOS)
@@ -141,7 +162,9 @@ final class AuthStore {
         #endif
         self.token = nil
         self.user = nil
+        self.isGuest = false
         KeychainHelper.delete(key: tokenKey)
+        KeychainHelper.delete(key: guestKey)
         await APIClient.shared.setAuthToken(nil)
     }
 }

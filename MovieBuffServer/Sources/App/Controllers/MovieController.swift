@@ -238,11 +238,16 @@ struct MovieController: RouteCollection {
         async let watchmode = Self.fetchWatchMode(imdbID: imdbID, req: req)
 
         let detail = try await omdb
-        let (streaming, genres) = await watchmode
-        return MovieDetailResponse(from: detail, streaming: streaming, genres: genres)
+        let (streaming, genres, trailerKey) = await watchmode
+        return MovieDetailResponse(
+            from: detail,
+            streaming: streaming,
+            genres: genres,
+            trailerYouTubeKey: trailerKey
+        )
     }
 
-    private static func fetchWatchMode(imdbID: String, req: Request) async -> (streaming: [StreamingOption], genres: [String]) {
+    private static func fetchWatchMode(imdbID: String, req: Request) async -> (streaming: [StreamingOption], genres: [String], trailerKey: String?) {
         do {
             let service = try WatchModeService.make(for: req)
             let data = try await WatchModeCache.shared.titleData(for: imdbID, using: service)
@@ -257,12 +262,38 @@ struct MovieController: RouteCollection {
             }
 
             let genres = data.details.genreNames ?? []
-            req.logger.info("WatchMode: \(deduped.count) deduped options for \(imdbID)")
-            return (deduped, genres)
+            let trailerKey = data.details.trailer.flatMap(Self.youTubeKey(from:))
+            req.logger.info("WatchMode: \(deduped.count) deduped options for \(imdbID), trailer=\(trailerKey ?? "none")")
+            return (deduped, genres, trailerKey)
         } catch {
             req.logger.error("WatchMode fetch failed for \(imdbID): \(String(reflecting: error))")
-            return ([], [])
+            return ([], [], nil)
         }
+    }
+
+    /// Extracts the YouTube video ID from any of the URL shapes WatchMode returns:
+    ///   https://www.youtube.com/watch?v=ABC123
+    ///   https://youtu.be/ABC123
+    ///   https://www.youtube.com/embed/ABC123
+    private static func youTubeKey(from urlString: String) -> String? {
+        guard let components = URLComponents(string: urlString), let host = components.host else {
+            return nil
+        }
+        if host.contains("youtu.be") {
+            let key = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            return key.isEmpty ? nil : key
+        }
+        if host.contains("youtube.com") {
+            if let v = components.queryItems?.first(where: { $0.name == "v" })?.value, !v.isEmpty {
+                return v
+            }
+            // /embed/<key> or /v/<key>
+            let parts = components.path.split(separator: "/")
+            if parts.count >= 2, ["embed", "v"].contains(String(parts[0])) {
+                return String(parts[1])
+            }
+        }
+        return nil
     }
 
     @Sendable

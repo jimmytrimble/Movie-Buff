@@ -190,6 +190,29 @@ struct AuthView: View {
                 .foregroundStyle(.white.opacity(0.6))
                 .padding(.top, 2)
             }
+
+            HStack {
+                Rectangle().fill(.white.opacity(0.15)).frame(height: 1)
+                Text("or")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.5))
+                Rectangle().fill(.white.opacity(0.15)).frame(height: 1)
+            }
+            .padding(.top, 8)
+
+            Button {
+                auth.continueAsGuest()
+            } label: {
+                Text("Continue as Guest")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .foregroundStyle(Theme.gold)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Theme.gold.opacity(0.6), lineWidth: 1)
+                    )
+            }
         }
         .padding(.horizontal, 24)
         .sheet(isPresented: $showingResetSheet) {
