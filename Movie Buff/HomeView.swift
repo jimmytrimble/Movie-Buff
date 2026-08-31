@@ -26,6 +26,7 @@ extension Font {
 struct HomeView: View {
     @Environment(AuthStore.self) private var auth
     @State private var notifications = NotificationsStore()
+    @State private var browseFeed = BrowseFeedStore()
 
     var body: some View {
         TabView {
@@ -49,28 +50,118 @@ struct HomeView: View {
         }
         .tint(Theme.accent)
         .environment(notifications)
+        .environment(browseFeed)
         .task {
             if !auth.isGuest { await notifications.refresh() }
         }
     }
 }
 
+/// Session-scoped cache for the Browse tab so "Movie Recs" (and per-category feeds)
+/// only fetch once per app launch. Held at `HomeView` scope so it survives tab
+/// switching and detail-view navigation, but is torn down on sign out.
+@Observable
+@MainActor
+final class BrowseFeedStore {
+    struct Feed {
+        var movies: [MovieSummary]
+        var currentPage: Int
+        var hasMore: Bool
+    }
+
+    var categories: [String] = []
+    var errorMessage: String?
+    var isLoadingBrowse = false
+    var isLoadingMore = false
+
+    private var feeds: [String: Feed] = [:]
+    private let service = MovieService()
+
+    private func key(for category: String?) -> String {
+        category ?? "__all__"
+    }
+
+    func movies(for category: String?) -> [MovieSummary] {
+        feeds[key(for: category)]?.movies ?? []
+    }
+
+    func hasFeed(for category: String?) -> Bool {
+        feeds[key(for: category)] != nil
+    }
+
+    func hasMore(for category: String?) -> Bool {
+        feeds[key(for: category)]?.hasMore ?? true
+    }
+
+    func loadIfNeeded(category: String?) async {
+        guard !hasFeed(for: category) else { return }
+        await reload(category: category)
+    }
+
+    func reload(category: String?) async {
+        errorMessage = nil
+        isLoadingBrowse = true
+        defer { isLoadingBrowse = false }
+        do {
+            let response = try await service.browse(category: category, page: 1)
+            guard !Task.isCancelled else { return }
+            feeds[key(for: category)] = Feed(
+                movies: response.movies,
+                currentPage: 1,
+                hasMore: !response.movies.isEmpty
+            )
+        } catch is CancellationError {
+            return
+        } catch {
+            errorMessage = error.localizedDescription
+            feeds[key(for: category)] = Feed(movies: [], currentPage: 1, hasMore: false)
+        }
+    }
+
+    func loadMore(category: String?) async {
+        guard var feed = feeds[key(for: category)], feed.hasMore, !isLoadingMore else { return }
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        let nextPage = feed.currentPage + 1
+        do {
+            let response = try await service.browse(category: category, page: nextPage)
+            let newMovies = response.movies
+            if newMovies.isEmpty {
+                feed.hasMore = false
+            } else {
+                let existingIDs = Set(feed.movies.map(\.id))
+                let deduped = newMovies.filter { !existingIDs.contains($0.id) }
+                feed.movies.append(contentsOf: deduped)
+                feed.currentPage = nextPage
+                if deduped.isEmpty { feed.hasMore = false }
+            }
+            feeds[key(for: category)] = feed
+        } catch {
+            // Silent — user can pull to refresh to retry.
+        }
+    }
+
+    func loadCategoriesIfNeeded() async {
+        guard categories.isEmpty else { return }
+        do {
+            categories = try await service.categories()
+        } catch {
+            // Categories are optional — fall back to just "All".
+        }
+    }
+}
+
 struct BrowseView: View {
     @Environment(AuthStore.self) private var auth
+    @Environment(BrowseFeedStore.self) private var browseFeed
 
     @State private var showingProfile = false
-    @State private var browseMovies: [MovieSummary] = []
     @State private var searchResults: [MovieSummary] = []
-    @State private var categories: [String] = []
     @State private var selectedCategory: String? = nil
-    @State private var currentPage: Int = 1
-    @State private var hasMore: Bool = true
     @State private var searchQuery = ""
 
-    @State private var isLoadingBrowse = false
-    @State private var isLoadingMore = false
     @State private var isSearching = false
-    @State private var errorMessage: String?
+    @State private var searchError: String?
 
     private let service = MovieService()
     private let columns = [GridItem(.flexible(), spacing: 14),
@@ -80,9 +171,16 @@ struct BrowseView: View {
         searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     private var isSearchingMode: Bool { !trimmedQuery.isEmpty }
+    private var browseMovies: [MovieSummary] {
+        browseFeed.movies(for: selectedCategory)
+    }
     private var displayedMovies: [MovieSummary] {
         isSearchingMode ? searchResults : browseMovies
     }
+    private var categories: [String] { browseFeed.categories }
+    private var isLoadingBrowse: Bool { browseFeed.isLoadingBrowse }
+    private var isLoadingMore: Bool { browseFeed.isLoadingMore }
+    private var errorMessage: String? { searchError ?? browseFeed.errorMessage }
 
     var body: some View {
         ZStack {
@@ -105,7 +203,7 @@ struct BrowseView: View {
                 }
                 .padding(.bottom, 32)
             }
-            .refreshable { await reloadBrowse() }
+            .refreshable { await browseFeed.reload(category: selectedCategory) }
         }
         .navigationTitle("")
         #if os(iOS)
@@ -115,9 +213,9 @@ struct BrowseView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .searchable(text: $searchQuery, prompt: "Search movies")
-        .task { await loadCategoriesIfNeeded() }
+        .task { await browseFeed.loadCategoriesIfNeeded() }
         .task(id: trimmedQuery) { await runSearch() }
-        .task(id: selectedCategory) { await reloadBrowse() }
+        .task(id: selectedCategory) { await browseFeed.loadIfNeeded(category: selectedCategory) }
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Image("MovieBuffClear")
@@ -263,10 +361,10 @@ struct BrowseView: View {
                     .buttonStyle(.plain)
                     .task {
                         if !isSearchingMode,
-                           hasMore,
+                           browseFeed.hasMore(for: selectedCategory),
                            !isLoadingMore,
                            movie.id == browseMovies.last?.id {
-                            await loadMoreBrowse()
+                            await browseFeed.loadMore(category: selectedCategory)
                         }
                     }
                 }
@@ -314,59 +412,9 @@ struct BrowseView: View {
         .padding()
     }
 
-    private func loadCategoriesIfNeeded() async {
-        guard categories.isEmpty else { return }
-        do {
-            categories = try await service.categories()
-        } catch {
-            // Categories are optional — fall back to just "All".
-        }
-    }
-
-    private func reloadBrowse() async {
-        errorMessage = nil
-        currentPage = 1
-        hasMore = true
-        isLoadingBrowse = true
-        defer { isLoadingBrowse = false }
-        do {
-            let response = try await service.browse(category: selectedCategory, page: 1)
-            guard !Task.isCancelled else { return }
-            browseMovies = response.movies
-            hasMore = !response.movies.isEmpty
-        } catch is CancellationError {
-            return
-        } catch {
-            errorMessage = error.localizedDescription
-            browseMovies = []
-        }
-    }
-
-    private func loadMoreBrowse() async {
-        guard !isLoadingMore, hasMore else { return }
-        isLoadingMore = true
-        defer { isLoadingMore = false }
-        let nextPage = currentPage + 1
-        do {
-            let response = try await service.browse(category: selectedCategory, page: nextPage)
-            let newMovies = response.movies
-            if newMovies.isEmpty {
-                hasMore = false
-            } else {
-                let existingIDs = Set(browseMovies.map(\.id))
-                let deduped = newMovies.filter { !existingIDs.contains($0.id) }
-                browseMovies.append(contentsOf: deduped)
-                currentPage = nextPage
-                if deduped.isEmpty { hasMore = false }
-            }
-        } catch {
-            // Silent — user can pull to refresh to retry.
-        }
-    }
-
     private func runSearch() async {
         let query = trimmedQuery
-        errorMessage = nil
+        searchError = nil
         guard !query.isEmpty else {
             searchResults = []
             isSearching = false
@@ -384,7 +432,7 @@ struct BrowseView: View {
         } catch is CancellationError {
             return
         } catch {
-            errorMessage = error.localizedDescription
+            searchError = error.localizedDescription
         }
     }
 }

@@ -262,13 +262,32 @@ struct MovieController: RouteCollection {
             }
 
             let genres = data.details.genreNames ?? []
-            let trailerKey = data.details.trailer.flatMap(Self.youTubeKey(from:))
+            let trailerKey = await Self.resolveTrailerKey(details: data.details, req: req)
             req.logger.info("WatchMode: \(deduped.count) deduped options for \(imdbID), trailer=\(trailerKey ?? "none")")
             return (deduped, genres, trailerKey)
         } catch {
             req.logger.error("WatchMode fetch failed for \(imdbID): \(String(reflecting: error))")
             return ([], [], nil)
         }
+    }
+
+    /// Prefers TMDb's `/movie/{id}/videos` endpoint (same source the Reels feed uses, and
+    /// which verifies the video is actually embeddable), falling back to WatchMode's
+    /// `trailer` URL when TMDb has nothing or the movie has no tmdbID mapping.
+    private static func resolveTrailerKey(details: WatchModeDetails, req: Request) async -> String? {
+        if let tmdbID = details.tmdbID {
+            do {
+                let tmdb = try TMDbService.make(for: req)
+                if let key = try await TMDbTrailerCache.shared.embeddableTrailerKey(
+                    for: tmdbID, using: tmdb, client: req.client
+                ) {
+                    return key
+                }
+            } catch {
+                req.logger.warning("TMDb trailer lookup failed for tmdbID=\(tmdbID): \(error)")
+            }
+        }
+        return details.trailer.flatMap(Self.youTubeKey(from:))
     }
 
     /// Extracts the YouTube video ID from any of the URL shapes WatchMode returns:

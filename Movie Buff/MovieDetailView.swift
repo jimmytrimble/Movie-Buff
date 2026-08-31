@@ -95,8 +95,13 @@ struct MovieDetailView: View {
         }
         #if os(iOS)
         .sheet(isPresented: $showingTrailer) {
-            if let key = detail?.trailerYouTubeKey {
-                TrailerPlayerSheet(youTubeKey: key)
+            if let detail {
+                if let key = detail.trailerYouTubeKey, !key.isEmpty {
+                    TrailerPlayerSheet(source: .youTubeKey(key))
+                } else {
+                    let query = "\(detail.title) \(detail.year ?? "") trailer"
+                    TrailerPlayerSheet(source: .search(query: query))
+                }
             }
         }
         #endif
@@ -160,24 +165,7 @@ struct MovieDetailView: View {
             }
             .disabled(isMutating)
 
-            if let trailerKey = detail.trailerYouTubeKey, !trailerKey.isEmpty {
-                Button {
-                    showingTrailer = true
-                } label: {
-                    HStack {
-                        Image(systemName: "play.circle.fill")
-                        Text("Watch Trailer")
-                    }
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .foregroundStyle(Theme.gold)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Theme.gold.opacity(0.6), lineWidth: 1)
-                    )
-                }
-            }
+            trailerButton(for: detail)
 
             streamingSection
 
@@ -199,6 +187,27 @@ struct MovieDetailView: View {
             }
         }
         .padding()
+    }
+
+    @ViewBuilder
+    private func trailerButton(for detail: MovieDetail) -> some View {
+        Button {
+            showingTrailer = true
+        } label: {
+            HStack {
+                Image(systemName: "play.circle.fill")
+                Text("View Trailer")
+            }
+            .font(.headline)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .foregroundStyle(Theme.gold)
+            .background(Theme.gold.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Theme.gold.opacity(0.6), lineWidth: 1)
+            )
+        }
     }
 
     @ViewBuilder
@@ -384,13 +393,18 @@ private struct InfoRow: View {
     }
 }
 #if os(iOS)
+enum TrailerSource {
+    case youTubeKey(String)
+    case search(query: String)
+}
+
 private struct TrailerPlayerSheet: View {
-    let youTubeKey: String
+    let source: TrailerSource
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            YouTubeEmbedView(youTubeKey: youTubeKey)
+            TrailerWebView(source: source)
                 .ignoresSafeArea(edges: .bottom)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbarBackground(Theme.background, for: .navigationBar)
@@ -398,8 +412,14 @@ private struct TrailerPlayerSheet: View {
                 .toolbarColorScheme(.dark, for: .navigationBar)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Done") { dismiss() }
-                            .foregroundStyle(Theme.accent)
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(.white.opacity(0.85))
+                        }
+                        .accessibilityLabel("Close")
                     }
                     ToolbarItem(placement: .principal) {
                         Text("Trailer")
@@ -413,8 +433,11 @@ private struct TrailerPlayerSheet: View {
     }
 }
 
-private struct YouTubeEmbedView: UIViewRepresentable {
-    let youTubeKey: String
+/// Renders a YouTube trailer inline. For a known video key we use the IFrame Player API
+/// (autoplay with sound). When we only have a search query, we load YouTube's mobile
+/// results page so the user can tap a result — still fully in-app.
+private struct TrailerWebView: UIViewRepresentable {
+    let source: TrailerSource
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -424,34 +447,60 @@ private struct YouTubeEmbedView: UIViewRepresentable {
         webView.isOpaque = false
         webView.backgroundColor = .black
         webView.scrollView.backgroundColor = .black
-        webView.scrollView.isScrollEnabled = false
+        // Some YouTube surfaces refuse to render unless the User-Agent looks like Safari.
+        webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+
+        switch source {
+        case .youTubeKey(let key):
+            webView.scrollView.isScrollEnabled = false
+            webView.loadHTMLString(embedHTML(videoID: key),
+                                   baseURL: URL(string: "https://www.youtube-nocookie.com"))
+        case .search(let query):
+            let escaped = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+            if let url = URL(string: "https://m.youtube.com/results?search_query=\(escaped)") {
+                webView.load(URLRequest(url: url))
+            }
+        }
         return webView
     }
 
-    func updateUIView(_ webView: WKWebView, context: Context) {
-        let html = """
-        <!doctype html>
+    func updateUIView(_ webView: WKWebView, context: Context) {}
+
+    private func embedHTML(videoID: String) -> String {
+        // IFrame Player API — autoplay is user-initiated (they tapped View Trailer),
+        // so we start with sound on.
+        """
+        <!DOCTYPE html>
         <html>
-        <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-        <style>
-        html,body { margin:0; padding:0; background:#000; height:100%; }
-        .wrap { position:relative; width:100%; height:100%; }
-        iframe { position:absolute; top:0; left:0; width:100%; height:100%; border:0; }
-        </style>
-        </head>
-        <body>
-        <div class="wrap">
-        <iframe
-          src="https://www.youtube.com/embed/\(youTubeKey)?playsinline=1&rel=0&modestbranding=1"
-          allow="autoplay; encrypted-media; picture-in-picture"
-          allowfullscreen>
-        </iframe>
-        </div>
-        </body>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hidden; }
+              .wrap { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                      width: 100vw; height: 100vh; }
+              #player { width: 100%; height: 100%; border: 0; }
+            </style>
+          </head>
+          <body>
+            <div class="wrap"><div id="player"></div></div>
+            <script src="https://www.youtube.com/iframe_api"></script>
+            <script>
+              function onYouTubeIframeAPIReady() {
+                window.mbPlayer = new YT.Player('player', {
+                  height: '100%',
+                  width: '100%',
+                  videoId: '\(videoID)',
+                  host: 'https://www.youtube-nocookie.com',
+                  playerVars: {
+                    autoplay: 1, playsinline: 1, controls: 1,
+                    modestbranding: 1, rel: 0, enablejsapi: 1
+                  }
+                });
+              }
+            </script>
+          </body>
         </html>
         """
-        webView.loadHTMLString(html, baseURL: URL(string: "https://www.youtube.com"))
     }
 }
 #endif

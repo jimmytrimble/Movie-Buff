@@ -93,6 +93,7 @@ struct WatchModeService {
 
 struct WatchModeDetails: Content {
     let id: Int
+    let tmdbID: Int?
     let genres: [Int]?
     let genreNames: [String]?
     let trailer: String?
@@ -100,6 +101,7 @@ struct WatchModeDetails: Content {
 
     enum CodingKeys: String, CodingKey {
         case id
+        case tmdbID = "tmdb_id"
         case genres
         case genreNames = "genre_names"
         case trailer
