@@ -1,7 +1,7 @@
 # ================================
 # Build image
 # ================================
-FROM swift:5.10-jammy AS build
+FROM swift:6.0-jammy AS build
 
 # Install jemalloc dev headers (needed by the `-ljemalloc` linker flag below).
 RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true && \
@@ -34,7 +34,7 @@ RUN [ -d /build/Resources ] && { mv /build/Resources ./Resources && chmod -R a-w
 # ================================
 # Run image
 # ================================
-FROM swift:5.10-jammy-slim
+FROM swift:6.0-jammy-slim
 
 # Install runtime dependencies + drop root privileges.
 RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true && \
