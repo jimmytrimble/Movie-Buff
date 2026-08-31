@@ -38,7 +38,8 @@ struct SubscriptionController: RouteCollection {
         user.subscriptionExpiresAt = expiresAt
         try await user.save(on: req.db)
 
-        req.logger.info("Subscription updated for user=\(try user.requireID()) expires=\(expiresAt) product=\(user.subscriptionProductID ?? "?")")
+        let userID = try user.requireID()
+        req.logger.info("Subscription updated for user=\(userID) expires=\(expiresAt) product=\(user.subscriptionProductID ?? "?")")
 
         return try UserDTO(user)
     }
@@ -54,7 +55,7 @@ struct SubscriptionController: RouteCollection {
     /// Splits a compact JWS (`header.payload.signature`) and base64url-decodes the
     /// middle segment. Signature verification is NOT performed here — see the
     /// note on `verifyApple`.
-    static func decodeJWSPayload(_ jws: String) throws -> AppleTransactionPayload {
+    private static func decodeJWSPayload(_ jws: String) throws -> AppleTransactionPayload {
         let parts = jws.split(separator: ".")
         guard parts.count == 3 else {
             throw Abort(.badRequest, reason: "Malformed signed transaction (expected 3 JWS segments).")
