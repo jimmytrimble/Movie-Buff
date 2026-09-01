@@ -454,6 +454,31 @@ struct ReelsService {
     }
 }
 
+struct PeopleService {
+    let client: APIClient
+    init(client: APIClient = .shared) { self.client = client }
+
+    func search(query: String, page: Int = 1) async throws -> [PersonSummary] {
+        let response: PersonSearchResponse = try await client.request(
+            path: "/people/search",
+            query: [
+                URLQueryItem(name: "q", value: query),
+                URLQueryItem(name: "page", value: String(page))
+            ],
+            authorized: true
+        )
+        return response.results
+    }
+
+    func filmography(tmdbID: Int) async throws -> [PersonMovieCredit] {
+        let response: PersonMovieCreditsResponse = try await client.request(
+            path: "/people/\(tmdbID)/movies",
+            authorized: true
+        )
+        return response.results
+    }
+}
+
 struct SubscriptionService {
     let client: APIClient
     init(client: APIClient = .shared) { self.client = client }

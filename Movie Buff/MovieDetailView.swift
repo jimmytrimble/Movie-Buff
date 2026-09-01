@@ -198,11 +198,21 @@ struct MovieDetailView: View {
     @ViewBuilder
     private func trailerButton(for detail: MovieDetail) -> some View {
         Button {
-            showingTrailer = true
+            if premiumGate() {
+                showingTrailer = true
+            }
         } label: {
             HStack {
-                Image(systemName: "play.circle.fill")
+                Image(systemName: auth.isPremium ? "play.circle.fill" : "lock.fill")
                 Text("View Trailer")
+                if !auth.isPremium {
+                    Text("Premium")
+                        .font(.caption2.weight(.bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Theme.gold.opacity(0.25), in: Capsule())
+                        .overlay(Capsule().stroke(Theme.gold.opacity(0.7), lineWidth: 0.5))
+                }
             }
             .font(.headline)
             .frame(maxWidth: .infinity)

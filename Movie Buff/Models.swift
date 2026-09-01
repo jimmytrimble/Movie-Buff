@@ -403,3 +403,38 @@ struct MovieDetail: Codable, Identifiable, Hashable {
         MovieSummary(title: title, year: year, imdbID: imdbID, type: nil, poster: poster)
     }
 }
+// MARK: - People
+
+struct PersonSummary: Codable, Identifiable, Hashable {
+    let tmdbID: Int
+    let name: String
+    let profileURL: String?
+    let knownFor: String?
+
+    var id: Int { tmdbID }
+    var profileImageURL: URL? { profileURL.flatMap(URL.init(string:)) }
+}
+
+struct PersonSearchResponse: Codable {
+    let results: [PersonSummary]
+}
+
+struct PersonMovieCredit: Codable, Identifiable, Hashable {
+    let imdbID: String
+    let title: String
+    let year: String?
+    let posterURL: String?
+    let character: String?
+    let job: String?
+
+    var id: String { imdbID }
+
+    var summary: MovieSummary {
+        MovieSummary(title: title, year: year, imdbID: imdbID, type: nil, poster: posterURL)
+    }
+}
+
+struct PersonMovieCreditsResponse: Codable {
+    let results: [PersonMovieCredit]
+}
+

@@ -169,15 +169,25 @@ struct BrowseView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(BrowseFeedStore.self) private var browseFeed
 
+    enum SearchScope: String, CaseIterable, Identifiable {
+        case movies
+        case people
+        var id: String { rawValue }
+        var label: String { self == .movies ? "Movies" : "People" }
+    }
+
     @State private var showingProfile = false
     @State private var searchResults: [MovieSummary] = []
+    @State private var peopleResults: [PersonSummary] = []
     @State private var selectedCategory: String? = nil
     @State private var searchQuery = ""
+    @State private var searchScope: SearchScope = .movies
 
     @State private var isSearching = false
     @State private var searchError: String?
 
     private let service = MovieService()
+    private let peopleService = PeopleService()
     private let columns = [GridItem(.flexible(), spacing: 14),
                            GridItem(.flexible(), spacing: 14)]
 
@@ -207,10 +217,12 @@ struct BrowseView: View {
                         if !categories.isEmpty {
                             categoryFilter
                         }
+                    } else {
+                        searchScopePicker
                     }
                     sectionHeader
                     content
-                    if isLoadingMore {
+                    if isLoadingMore, isSearchingMode == false || searchScope == .movies {
                         ProgressView().tint(Theme.accent).padding(.vertical, 12)
                             .frame(maxWidth: .infinity)
                     }
@@ -226,9 +238,9 @@ struct BrowseView: View {
         .toolbarBackground(Theme.background, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
-        .searchable(text: $searchQuery, prompt: "Search movies")
+        .searchable(text: $searchQuery, prompt: "Search movies or people")
         .task { await browseFeed.loadCategoriesIfNeeded() }
-        .task(id: trimmedQuery) { await runSearch() }
+        .task(id: SearchTaskKey(query: trimmedQuery, scope: searchScope)) { await runSearch() }
         .task(id: selectedCategory) { await browseFeed.loadIfNeeded(category: selectedCategory) }
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -253,9 +265,19 @@ struct BrowseView: View {
         .navigationDestination(for: MovieSummary.self) { movie in
             MovieDetailView(imdbID: movie.imdbID)
         }
-        .sheet(isPresented: $showingProfile) {
-            ProfileView().environment(auth)
+        .navigationDestination(for: PersonSummary.self) { person in
+            PersonView(person: person)
         }
+    }
+
+    private var searchScopePicker: some View {
+        Picker("Scope", selection: $searchScope) {
+            ForEach(SearchScope.allCases) { scope in
+                Text(scope.label).tag(scope)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal)
     }
 
     private var heroBanner: some View {
@@ -336,8 +358,9 @@ struct BrowseView: View {
                 ProgressView().tint(.white.opacity(0.6)).scaleEffect(0.8)
             }
             Spacer()
-            if !displayedMovies.isEmpty {
-                Text("\(displayedMovies.count)")
+            let count = isSearchingMode && searchScope == .people ? peopleResults.count : displayedMovies.count
+            if count > 0 {
+                Text("\(count)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.6))
                     .padding(.horizontal, 10)
@@ -349,13 +372,22 @@ struct BrowseView: View {
     }
 
     private var sectionTitle: String {
-        if isSearchingMode { return "Results" }
+        if isSearchingMode { return searchScope == .people ? "People" : "Results" }
         if let category = selectedCategory { return category }
         return "Movie Recs"
     }
 
     @ViewBuilder
     private var content: some View {
+        if isSearchingMode && searchScope == .people {
+            peopleContent
+        } else {
+            moviesContent
+        }
+    }
+
+    @ViewBuilder
+    private var moviesContent: some View {
         if let errorMessage {
             errorState(errorMessage)
         } else if displayedMovies.isEmpty {
@@ -381,6 +413,29 @@ struct BrowseView: View {
                             await browseFeed.loadMore(category: selectedCategory)
                         }
                     }
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    @ViewBuilder
+    private var peopleContent: some View {
+        if let errorMessage {
+            errorState(errorMessage)
+        } else if peopleResults.isEmpty {
+            if isSearching {
+                loadingState
+            } else {
+                emptyResults(message: "No people found for \u{201C}\(trimmedQuery)\u{201D}")
+            }
+        } else {
+            LazyVStack(spacing: 10) {
+                ForEach(peopleResults) { person in
+                    NavigationLink(value: person) {
+                        PersonRow(person: person)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal)
@@ -431,6 +486,7 @@ struct BrowseView: View {
         searchError = nil
         guard !query.isEmpty else {
             searchResults = []
+            peopleResults = []
             isSearching = false
             return
         }
@@ -440,15 +496,29 @@ struct BrowseView: View {
         isSearching = true
         defer { isSearching = false }
         do {
-            let response = try await service.search(query: query)
-            guard !Task.isCancelled else { return }
-            searchResults = response.movies
+            switch searchScope {
+            case .movies:
+                let response = try await service.search(query: query)
+                guard !Task.isCancelled else { return }
+                searchResults = response.movies
+            case .people:
+                let people = try await peopleService.search(query: query)
+                guard !Task.isCancelled else { return }
+                peopleResults = people
+            }
         } catch is CancellationError {
             return
         } catch {
             searchError = error.localizedDescription
         }
     }
+}
+
+/// Composite key so `.task(id:)` re-fires when either the query text or the
+/// selected scope changes.
+private struct SearchTaskKey: Hashable {
+    let query: String
+    let scope: BrowseView.SearchScope
 }
 
 private struct CategoryChip: View {

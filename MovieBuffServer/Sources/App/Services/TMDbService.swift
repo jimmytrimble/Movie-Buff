@@ -18,6 +18,52 @@ struct TMDbService {
         return TMDbService(client: req.client, apiKey: key)
     }
 
+    // MARK: - People
+
+    /// Free-text search for actors, directors, etc. Returns up to 20 matches per page.
+    func searchPeople(query: String, page: Int = 1) async throws -> TMDbPersonSearchResponse {
+        let uri = URI(string: "\(Self.baseURL)/search/person")
+        let response = try await client.get(uri) { req in
+            try req.query.encode([
+                "api_key": apiKey,
+                "query": query,
+                "page": String(page),
+                "include_adult": "false",
+            ])
+        }
+        guard response.status == .ok else {
+            throw Abort(.badGateway, reason: "TMDb search/person responded with \(response.status.code)")
+        }
+        return try response.content.decode(TMDbPersonSearchResponse.self)
+    }
+
+    /// A person's acting credits. Filter out uncredited / very small parts client-side.
+    func movieCredits(personID: Int) async throws -> TMDbMovieCreditsResponse {
+        let uri = URI(string: "\(Self.baseURL)/person/\(personID)/movie_credits")
+        let response = try await client.get(uri) { req in
+            try req.query.encode(["api_key": apiKey])
+        }
+        guard response.status == .ok else {
+            throw Abort(.badGateway, reason: "TMDb movie_credits responded with \(response.status.code)")
+        }
+        return try response.content.decode(TMDbMovieCreditsResponse.self)
+    }
+
+    /// Fetches a movie's external IDs (we care about `imdb_id` — needed to route into
+    /// the existing OMDB-keyed detail flow).
+    func externalIDs(movieTmdbID: Int) async throws -> TMDbExternalIDs {
+        let uri = URI(string: "\(Self.baseURL)/movie/\(movieTmdbID)/external_ids")
+        let response = try await client.get(uri) { req in
+            try req.query.encode(["api_key": apiKey])
+        }
+        guard response.status == .ok else {
+            throw Abort(.badGateway, reason: "TMDb external_ids responded with \(response.status.code)")
+        }
+        return try response.content.decode(TMDbExternalIDs.self)
+    }
+
+    // MARK: - Trailers
+
     /// Returns all YouTube video IDs for a movie, ordered by preference:
     /// official Trailer → any Trailer → official Teaser → any Teaser.
     /// Caller is expected to walk the list and pick the first embeddable one.
@@ -55,6 +101,73 @@ struct TMDbVideo: Content {
     let site: String
     let type: String
     let official: Bool?
+}
+
+struct TMDbPersonSearchResponse: Content {
+    let page: Int
+    let results: [TMDbPerson]
+    let totalResults: Int?
+    let totalPages: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case page
+        case results
+        case totalResults = "total_results"
+        case totalPages = "total_pages"
+    }
+}
+
+struct TMDbPerson: Content {
+    let id: Int
+    let name: String
+    let profilePath: String?
+    let knownForDepartment: String?
+    let popularity: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case profilePath = "profile_path"
+        case knownForDepartment = "known_for_department"
+        case popularity
+    }
+}
+
+struct TMDbMovieCreditsResponse: Content {
+    let cast: [TMDbMovieCredit]
+    let crew: [TMDbMovieCredit]
+}
+
+struct TMDbMovieCredit: Content {
+    let id: Int
+    let title: String?
+    let originalTitle: String?
+    let releaseDate: String?
+    let posterPath: String?
+    let character: String?
+    let job: String?
+    let voteAverage: Double?
+    let popularity: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case originalTitle = "original_title"
+        case releaseDate = "release_date"
+        case posterPath = "poster_path"
+        case character
+        case job
+        case voteAverage = "vote_average"
+        case popularity
+    }
+}
+
+struct TMDbExternalIDs: Content {
+    let imdbID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case imdbID = "imdb_id"
+    }
 }
 
 /// 24h cache for TMDb trailer lookups, keyed by tmdbID. Nil results are cached too so we

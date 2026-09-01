@@ -236,10 +236,11 @@ struct MovieController: RouteCollection {
         guard let imdbID = req.parameters.get("imdbID"), !imdbID.isEmpty else {
             throw Abort(.badRequest, reason: "Missing imdbID")
         }
+        let user = try req.auth.require(User.self)
         let omdbService = try OMDBService.make(for: req)
 
         async let omdb = omdbService.detail(imdbID: imdbID)
-        async let watchmode = Self.fetchWatchMode(imdbID: imdbID, req: req)
+        async let watchmode = Self.fetchWatchMode(imdbID: imdbID, includeTrailer: user.isPremium, req: req)
 
         let detail = try await omdb
         let (streaming, genres, trailerKey) = await watchmode
@@ -251,7 +252,7 @@ struct MovieController: RouteCollection {
         )
     }
 
-    private static func fetchWatchMode(imdbID: String, req: Request) async -> (streaming: [StreamingOption], genres: [String], trailerKey: String?) {
+    private static func fetchWatchMode(imdbID: String, includeTrailer: Bool, req: Request) async -> (streaming: [StreamingOption], genres: [String], trailerKey: String?) {
         do {
             let service = try WatchModeService.make(for: req)
             let data = try await WatchModeCache.shared.titleData(for: imdbID, using: service)
@@ -266,7 +267,10 @@ struct MovieController: RouteCollection {
             }
 
             let genres = data.details.genreNames ?? []
-            let trailerKey = await Self.resolveTrailerKey(details: data.details, req: req)
+            // Trailer lookup is a paid TMDb call; only make it for premium users.
+            let trailerKey = includeTrailer
+                ? await Self.resolveTrailerKey(details: data.details, req: req)
+                : nil
             req.logger.info("WatchMode: \(deduped.count) deduped options for \(imdbID), trailer=\(trailerKey ?? "none")")
             return (deduped, genres, trailerKey)
         } catch {
