@@ -426,8 +426,10 @@ struct PersonMovieCredit: Codable, Identifiable, Hashable {
     let posterURL: String?
     let character: String?
     let job: String?
+    let mediaType: String?   // "movie" or "tv" — nil-safe for older responses
 
     var id: String { imdbID }
+    var isTV: Bool { mediaType == "tv" }
 
     var summary: MovieSummary {
         MovieSummary(title: title, year: year, imdbID: imdbID, type: nil, poster: posterURL)

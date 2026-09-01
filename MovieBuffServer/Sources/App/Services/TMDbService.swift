@@ -37,22 +37,24 @@ struct TMDbService {
         return try response.content.decode(TMDbPersonSearchResponse.self)
     }
 
-    /// A person's acting credits. Filter out uncredited / very small parts client-side.
-    func movieCredits(personID: Int) async throws -> TMDbMovieCreditsResponse {
-        let uri = URI(string: "\(Self.baseURL)/person/\(personID)/movie_credits")
+    /// A person's movie + TV credits combined into one call. Each item carries
+    /// `mediaType` so callers can partition them.
+    func combinedCredits(personID: Int) async throws -> TMDbCombinedCreditsResponse {
+        let uri = URI(string: "\(Self.baseURL)/person/\(personID)/combined_credits")
         let response = try await client.get(uri) { req in
             try req.query.encode(["api_key": apiKey])
         }
         guard response.status == .ok else {
-            throw Abort(.badGateway, reason: "TMDb movie_credits responded with \(response.status.code)")
+            throw Abort(.badGateway, reason: "TMDb combined_credits responded with \(response.status.code)")
         }
-        return try response.content.decode(TMDbMovieCreditsResponse.self)
+        return try response.content.decode(TMDbCombinedCreditsResponse.self)
     }
 
-    /// Fetches a movie's external IDs (we care about `imdb_id` — needed to route into
-    /// the existing OMDB-keyed detail flow).
-    func externalIDs(movieTmdbID: Int) async throws -> TMDbExternalIDs {
-        let uri = URI(string: "\(Self.baseURL)/movie/\(movieTmdbID)/external_ids")
+    /// Fetches external IDs for a movie or TV show. `mediaType` should be
+    /// "movie" or "tv" — TMDb uses different paths for each.
+    func externalIDs(tmdbID: Int, mediaType: String) async throws -> TMDbExternalIDs {
+        let path = mediaType == "tv" ? "tv" : "movie"
+        let uri = URI(string: "\(Self.baseURL)/\(path)/\(tmdbID)/external_ids")
         let response = try await client.get(uri) { req in
             try req.query.encode(["api_key": apiKey])
         }
@@ -133,16 +135,23 @@ struct TMDbPerson: Content {
     }
 }
 
-struct TMDbMovieCreditsResponse: Content {
-    let cast: [TMDbMovieCredit]
-    let crew: [TMDbMovieCredit]
+struct TMDbCombinedCreditsResponse: Content {
+    let cast: [TMDbCombinedCredit]
+    let crew: [TMDbCombinedCredit]
 }
 
-struct TMDbMovieCredit: Content {
+/// Handles both movie and TV entries — TV shows use `name` / `first_air_date`
+/// where movies use `title` / `release_date`. The `mediaType` discriminator
+/// tells us which flavor we're looking at.
+struct TMDbCombinedCredit: Content {
     let id: Int
+    let mediaType: String   // "movie" or "tv"
     let title: String?
     let originalTitle: String?
+    let name: String?           // TV shows use `name`
+    let originalName: String?
     let releaseDate: String?
+    let firstAirDate: String?   // TV shows use `first_air_date`
     let posterPath: String?
     let character: String?
     let job: String?
@@ -151,14 +160,28 @@ struct TMDbMovieCredit: Content {
 
     enum CodingKeys: String, CodingKey {
         case id
+        case mediaType = "media_type"
         case title
         case originalTitle = "original_title"
+        case name
+        case originalName = "original_name"
         case releaseDate = "release_date"
+        case firstAirDate = "first_air_date"
         case posterPath = "poster_path"
         case character
         case job
         case voteAverage = "vote_average"
         case popularity
+    }
+
+    /// Prefers `title` (movie) → `name` (TV) → original fallbacks.
+    var displayTitle: String {
+        title ?? name ?? originalTitle ?? originalName ?? "Untitled"
+    }
+
+    /// Prefers `release_date` (movie) → `first_air_date` (TV).
+    var displayDate: String? {
+        releaseDate ?? firstAirDate
     }
 }
 

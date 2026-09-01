@@ -18,8 +18,8 @@ struct PersonSearchResponse: Content {
     let results: [PersonSummaryDTO]
 }
 
-/// A single movie in a person's filmography, already resolved to imdbID so the
-/// client can route into the existing detail flow.
+/// A single credit in a person's filmography (movie OR TV), already resolved
+/// to imdbID so the client can route into the existing detail flow.
 struct PersonMovieCreditDTO: Content {
     let imdbID: String
     let title: String
@@ -27,6 +27,7 @@ struct PersonMovieCreditDTO: Content {
     let posterURL: String?
     let character: String?
     let job: String?
+    let mediaType: String   // "movie" or "tv"
 }
 
 struct PersonMovieCreditsResponse: Content {
