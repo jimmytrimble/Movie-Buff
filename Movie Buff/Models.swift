@@ -243,6 +243,24 @@ struct WatchPartyVoteResult: Codable {
 
 // MARK: - Reels
 
+enum ReelRatingValue: String, Codable {
+    case up
+    case down
+}
+
+struct RateReelRequest: Codable {
+    let rating: String
+    let genres: [String]
+}
+
+struct ReelRatingEntry: Codable, Identifiable, Hashable {
+    let imdbID: String
+    let rating: String
+
+    var id: String { imdbID }
+    var value: ReelRatingValue? { ReelRatingValue(rawValue: rating) }
+}
+
 struct ReelEntry: Codable, Identifiable, Hashable {
     let imdbID: String
     let title: String

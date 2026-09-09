@@ -188,3 +188,21 @@ struct SavedMovieDTO: Content {
         self.addedAt = movie.addedAt
     }
 }
+
+struct WatchedMovieDTO: Content {
+    let id: UUID
+    let imdbID: String
+    let title: String
+    let year: String?
+    let posterURL: String?
+    let watchedAt: Date?
+
+    init(_ movie: WatchedMovie) throws {
+        self.id = try movie.requireID()
+        self.imdbID = movie.imdbID
+        self.title = movie.title
+        self.year = movie.year
+        self.posterURL = movie.posterURL
+        self.watchedAt = movie.watchedAt
+    }
+}

@@ -23,6 +23,8 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(EnhanceComments())
     app.migrations.add(AddCommentSpoilerFlag())
     app.migrations.add(AddUserSubscription())
+    app.migrations.add(CreateWatchedMovie())
+    app.migrations.add(CreateReelRating())
 
     // Always run pending migrations at boot. Fluent tracks which ones have already run,
     // so re-applying is a no-op — safe in production and lets Render deploys migrate

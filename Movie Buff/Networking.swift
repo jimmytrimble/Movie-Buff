@@ -276,6 +276,29 @@ struct MovieService {
             authorized: true
         )
     }
+
+    // MARK: - Watched list
+
+    func watchedMovies() async throws -> [SavedMovie] {
+        try await client.request(path: "/me/watched", authorized: true)
+    }
+
+    func markWatched(_ request: SaveMovieRequest) async throws {
+        let _: EmptyResponse = try await client.request(
+            path: "/me/watched",
+            method: "POST",
+            body: request,
+            authorized: true
+        )
+    }
+
+    func unmarkWatched(imdbID: String) async throws {
+        let _: EmptyResponse = try await client.request(
+            path: "/me/watched/\(imdbID)",
+            method: "DELETE",
+            authorized: true
+        )
+    }
 }
 
 struct FriendService {
@@ -449,6 +472,30 @@ struct ReelsService {
         try await client.request(
             path: "/reels",
             query: [URLQueryItem(name: "page", value: String(page))],
+            authorized: true
+        )
+    }
+
+    /// Record a thumbs-up/down on a trailer so future feeds show more or less of its style.
+    func rate(imdbID: String, rating: ReelRatingValue, genres: [String]) async throws {
+        let _: EmptyResponse = try await client.request(
+            path: "/reels/\(imdbID)/rate",
+            method: "POST",
+            body: RateReelRequest(rating: rating.rawValue, genres: genres),
+            authorized: true
+        )
+    }
+
+    /// The current user's saved trailer ratings, used to restore thumbs state.
+    func ratings() async throws -> [ReelRatingEntry] {
+        try await client.request(path: "/reels/ratings", authorized: true)
+    }
+
+    /// Clear a previously recorded rating for a trailer.
+    func clearRating(imdbID: String) async throws {
+        let _: EmptyResponse = try await client.request(
+            path: "/reels/\(imdbID)/rate",
+            method: "DELETE",
             authorized: true
         )
     }

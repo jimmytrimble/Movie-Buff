@@ -19,6 +19,13 @@ struct MovieController: RouteCollection {
         myMovies.get(use: list)
         myMovies.post(use: save)
         myMovies.delete(":imdbID", use: unsave)
+
+        // Premium: "watched" list — tracks titles the user has already seen.
+        // Independent of the saved list, so a movie can be in both.
+        let watched = premium.grouped("me", "watched")
+        watched.get(use: listWatched)
+        watched.post(use: markWatched)
+        watched.delete(":imdbID", use: unmarkWatched)
     }
 
     @Sendable
@@ -367,6 +374,58 @@ struct MovieController: RouteCollection {
             throw Abort(.badRequest, reason: "Missing imdbID")
         }
         try await SavedMovie.query(on: req.db)
+            .filter(\.$user.$id == userID)
+            .filter(\.$imdbID == imdbID)
+            .delete()
+        return .noContent
+    }
+
+    // MARK: - Watched list
+
+    @Sendable
+    func listWatched(req: Request) async throws -> [WatchedMovieDTO] {
+        let user = try req.auth.require(User.self)
+        let userID = try user.requireID()
+        let movies = try await WatchedMovie.query(on: req.db)
+            .filter(\.$user.$id == userID)
+            .sort(\.$watchedAt, .descending)
+            .all()
+        return try movies.map { try WatchedMovieDTO($0) }
+    }
+
+    @Sendable
+    func markWatched(req: Request) async throws -> WatchedMovieDTO {
+        let user = try req.auth.require(User.self)
+        let userID = try user.requireID()
+        let body = try req.content.decode(SaveMovieRequest.self)
+
+        let existing = try await WatchedMovie.query(on: req.db)
+            .filter(\.$user.$id == userID)
+            .filter(\.$imdbID == body.imdbID)
+            .first()
+        if let existing {
+            return try WatchedMovieDTO(existing)
+        }
+
+        let movie = WatchedMovie(
+            userID: userID,
+            imdbID: body.imdbID,
+            title: body.title,
+            year: body.year,
+            posterURL: body.posterURL
+        )
+        try await movie.save(on: req.db)
+        return try WatchedMovieDTO(movie)
+    }
+
+    @Sendable
+    func unmarkWatched(req: Request) async throws -> HTTPStatus {
+        let user = try req.auth.require(User.self)
+        let userID = try user.requireID()
+        guard let imdbID = req.parameters.get("imdbID") else {
+            throw Abort(.badRequest, reason: "Missing imdbID")
+        }
+        try await WatchedMovie.query(on: req.db)
             .filter(\.$user.$id == userID)
             .filter(\.$imdbID == imdbID)
             .delete()

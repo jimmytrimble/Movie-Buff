@@ -33,7 +33,7 @@ COPY . .
 # for IDEs which don't apply on Render).
 RUN --mount=type=cache,target=/build/.build \
     --mount=type=cache,target=/root/.swiftpm \
-    swift build -c release -j 1 -Xlinker -ljemalloc --disable-index-store && \
+    swift build -c release -j 2 -Xlinker -ljemalloc --disable-index-store && \
     mkdir -p /staging && \
     BIN_PATH="$(swift build --package-path /build -c release --show-bin-path)" && \
     cp "$BIN_PATH/App" /staging/ && \

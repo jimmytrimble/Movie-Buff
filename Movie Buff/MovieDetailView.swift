@@ -19,6 +19,8 @@ struct MovieDetailView: View {
     @State private var isLoading = true
     @State private var isSaved = false
     @State private var isMutating = false
+    @State private var isWatched = false
+    @State private var isMutatingWatched = false
     @State private var errorMessage: String?
     @State private var showingShareSheet = false
     @State private var showingReviews = false
@@ -170,6 +172,36 @@ struct MovieDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             }
             .disabled(isMutating)
+
+            Button {
+                if auth.isGuest {
+                    showingGuestPrompt = true
+                } else if !auth.isPremium {
+                    showingPaywall = true
+                } else {
+                    Task { await toggleWatched() }
+                }
+            } label: {
+                HStack {
+                    if isMutatingWatched {
+                        ProgressView().tint(.white)
+                    } else {
+                        Image(systemName: isWatched ? "eye.fill" : "eye")
+                    }
+                    Text(isWatched ? "Watched" : "Mark as Watched")
+                }
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .foregroundStyle(isWatched ? .white : Theme.accent)
+                .background(isWatched ? Color.gray.opacity(0.3) : Theme.accent.opacity(0.15),
+                            in: RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Theme.accent.opacity(isWatched ? 0 : 0.6), lineWidth: 1)
+                )
+            }
+            .disabled(isMutatingWatched)
 
             trailerButton(for: detail)
 
@@ -327,9 +359,14 @@ struct MovieDetailView: View {
             errorMessage = error.localizedDescription
             sourcesState = .failed
         }
-        // Saved-list check is premium-only; only ask the server when it'd succeed.
-        if auth.isPremium, let saved = try? await service.savedMovies() {
-            isSaved = saved.contains { $0.imdbID == imdbID }
+        // Saved/watched checks are premium-only; only ask the server when it'd succeed.
+        if auth.isPremium {
+            if let saved = try? await service.savedMovies() {
+                isSaved = saved.contains { $0.imdbID == imdbID }
+            }
+            if let watched = try? await service.watchedMovies() {
+                isWatched = watched.contains { $0.imdbID == imdbID }
+            }
         }
     }
 
@@ -364,6 +401,29 @@ struct MovieDetailView: View {
                 )
                 try await service.save(request)
                 isSaved = true
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func toggleWatched() async {
+        guard let detail else { return }
+        isMutatingWatched = true
+        defer { isMutatingWatched = false }
+        do {
+            if isWatched {
+                try await service.unmarkWatched(imdbID: detail.imdbID)
+                isWatched = false
+            } else {
+                let request = SaveMovieRequest(
+                    imdbID: detail.imdbID,
+                    title: detail.title,
+                    year: detail.year,
+                    posterURL: detail.poster == "N/A" ? nil : detail.poster
+                )
+                try await service.markWatched(request)
+                isWatched = true
             }
         } catch {
             errorMessage = error.localizedDescription

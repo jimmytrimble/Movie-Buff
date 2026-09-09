@@ -1,6 +1,7 @@
 import SwiftUI
 #if os(iOS)
 import WebKit
+import UIKit
 #endif
 
 struct ReelsView: View {
@@ -152,8 +153,16 @@ private struct TrailerCard: View {
     @State private var navToDetail = false
     @State private var playbackFailed = false
     @State private var showingComments = false
+    @State private var rating: ReelRatingValue?
+    @State private var isWatched = false
+    @State private var isMarkingWatched = false
+    @State private var isPaused = false
 
     private let movieService = MovieService()
+    private let reelsService = ReelsService()
+
+    /// The video only plays when it's the active card AND the user hasn't paused it.
+    private var isPlaying: Bool { isActive && !isPaused }
 
     var body: some View {
         ZStack {
@@ -162,7 +171,7 @@ private struct TrailerCard: View {
             if let id = reel.youtubeID, !playbackFailed {
                 YouTubePlayerView(
                     videoID: id,
-                    isActive: isActive,
+                    isActive: isPlaying,
                     isMuted: isMuted,
                     onError: { playbackFailed = true }
                 )
@@ -177,19 +186,47 @@ private struct TrailerCard: View {
             thumbnailFallback
             #endif
 
-            // Full-card tap catcher (double-tap logic below)
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showOverlay.toggle()
-                    }
-                }
+            // Center play indicator, shown while paused (tap anywhere to resume).
+            if isPaused, reel.youtubeID != nil, !playbackFailed {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 60))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .shadow(color: .black.opacity(0.6), radius: 8)
+                    .transition(.opacity.combined(with: .scale))
+                    .allowsHitTesting(false)
+            }
 
             if showOverlay { overlay }
         }
         .clipped()
-        .task { await checkSaved() }
+        // Card-wide tap handling. Gestures live on the whole card so the info
+        // overlay's gradient can't swallow them; the action buttons are real
+        // controls, so they still take priority over these taps.
+        // Single tap → play/pause, double tap → show/hide the info overlay.
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showOverlay.toggle()
+            }
+        }
+        .onTapGesture {
+            guard reel.youtubeID != nil, !playbackFailed else { return }
+            #if os(iOS)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            #endif
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isPaused.toggle()
+            }
+        }
+        // Reset the manual pause when this card scrolls off-screen so it plays on return.
+        .onChange(of: isActive) { _, active in
+            if !active { isPaused = false }
+        }
+        .task {
+            await checkSaved()
+            await checkWatched()
+            await checkRating()
+        }
         .navigationDestination(isPresented: $navToDetail) {
             MovieDetailView(imdbID: reel.imdbID)
         }
@@ -296,6 +333,29 @@ private struct TrailerCard: View {
                         action: onToggleMute
                     )
                     actionButton(
+                        icon: rating == .up ? "hand.thumbsup.fill" : "hand.thumbsup",
+                        tint: rating == .up ? .green : .white,
+                        loading: false
+                    ) {
+                        Task { await setRating(.up) }
+                    }
+                    .scaleEffect(rating == .up ? 1.15 : 1)
+                    actionButton(
+                        icon: rating == .down ? "hand.thumbsdown.fill" : "hand.thumbsdown",
+                        tint: rating == .down ? .red : .white,
+                        loading: false
+                    ) {
+                        Task { await setRating(.down) }
+                    }
+                    .scaleEffect(rating == .down ? 1.15 : 1)
+                    actionButton(
+                        icon: isWatched ? "eye.fill" : "eye",
+                        tint: isWatched ? Theme.accent : .white,
+                        loading: isMarkingWatched
+                    ) {
+                        Task { await toggleWatched() }
+                    }
+                    actionButton(
                         icon: "bubble.left.and.bubble.right.fill",
                         tint: .white,
                         loading: false
@@ -368,6 +428,80 @@ private struct TrailerCard: View {
                 )
                 try await movieService.save(request)
                 isSaved = true
+            }
+        } catch {
+            // silent — the button will just stay in its previous state
+        }
+    }
+
+    /// Tapping the already-selected thumb clears the rating; otherwise it sets it.
+    /// The feed reacts on its next load — more of the up-rated style, less of the down-rated.
+    private func setRating(_ value: ReelRatingValue) async {
+        // Distinct haptic so the user can feel which thumb registered:
+        // a "success" tap for thumbs-up, a "warning" tap for thumbs-down.
+        #if os(iOS)
+        UINotificationFeedbackGenerator().notificationOccurred(value == .up ? .success : .warning)
+        #endif
+
+        // Update the UI immediately (tapping the active thumb clears it), then sync
+        // with the server. Revert the visual only if the request fails.
+        let previous = rating
+        let newValue: ReelRatingValue? = (rating == value) ? nil : value
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+            rating = newValue
+        }
+
+        do {
+            if newValue == nil {
+                try await reelsService.clearRating(imdbID: reel.imdbID)
+            } else {
+                try await reelsService.rate(imdbID: reel.imdbID, rating: value, genres: reel.genres)
+            }
+        } catch {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                rating = previous
+            }
+        }
+    }
+
+    private func checkWatched() async {
+        do {
+            let watched = try await movieService.watchedMovies()
+            isWatched = watched.contains { $0.imdbID == reel.imdbID }
+        } catch {
+            // silent
+        }
+    }
+
+    /// Restore the previously chosen thumbs-up/down so the green/red persists
+    /// across scrolls and sessions.
+    private func checkRating() async {
+        do {
+            let all = try await reelsService.ratings()
+            if let mine = all.first(where: { $0.imdbID == reel.imdbID }) {
+                rating = mine.value
+            }
+        } catch {
+            // silent
+        }
+    }
+
+    private func toggleWatched() async {
+        isMarkingWatched = true
+        defer { isMarkingWatched = false }
+        do {
+            if isWatched {
+                try await movieService.unmarkWatched(imdbID: reel.imdbID)
+                isWatched = false
+            } else {
+                let request = SaveMovieRequest(
+                    imdbID: reel.imdbID,
+                    title: reel.title,
+                    year: reel.year,
+                    posterURL: (reel.poster == "N/A" || reel.poster == nil) ? nil : reel.poster
+                )
+                try await movieService.markWatched(request)
+                isWatched = true
             }
         } catch {
             // silent — the button will just stay in its previous state

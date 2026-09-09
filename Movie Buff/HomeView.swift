@@ -548,14 +548,28 @@ private struct CategoryChip: View {
 }
 
 struct SavedView: View {
+    private enum SavedTab: String, CaseIterable {
+        case saved = "Watchlist"
+        case watched = "Watched"
+    }
+
     @Environment(AuthStore.self) private var auth
+    @State private var selectedTab: SavedTab = .saved
     @State private var movies: [SavedMovie] = []
+    @State private var watched: [SavedMovie] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
 
     private let service = MovieService()
     private let columns = [GridItem(.flexible(), spacing: 14),
                            GridItem(.flexible(), spacing: 14)]
+
+    /// imdbIDs already in the watched list — used to show the right context-menu action.
+    private var watchedIDs: Set<String> { Set(watched.map(\.imdbID)) }
+
+    private var currentMovies: [SavedMovie] {
+        selectedTab == .saved ? movies : watched
+    }
 
     var body: some View {
         ZStack {
@@ -569,36 +583,32 @@ struct SavedView: View {
                             ? "Your saved list stays with your account so it's there whenever you sign in."
                             : "Keep every movie you want to watch in one place, in sync across your devices."
                     )
-                } else if isLoading && movies.isEmpty {
-                    ProgressView().padding(.top, 100).tint(Theme.accent)
-                } else if movies.isEmpty {
-                    VStack(spacing: 14) {
-                        Image("MovieBuffIcon")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 96, height: 96)
-                            .opacity(0.85)
-                        Text("Your list is empty")
-                            .font(.sectionTitle)
-                            .foregroundStyle(.white)
-                        Text("Tap the bookmark on a movie to save it here.")
-                            .font(.footnote)
-                            .foregroundStyle(.white.opacity(0.55))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 100)
                 } else {
-                    LazyVGrid(columns: columns, spacing: 18) {
-                        ForEach(movies) { saved in
-                            NavigationLink(value: saved.summary) {
-                                MoviePosterCard(movie: saved.summary)
-                            }
-                            .buttonStyle(.plain)
+                    Picker("List", selection: $selectedTab) {
+                        ForEach(SavedTab.allCases, id: \.self) { tab in
+                            Text(tab.rawValue).tag(tab)
                         }
                     }
-                    .padding()
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+
+                    if isLoading && currentMovies.isEmpty {
+                        ProgressView().padding(.top, 100).tint(Theme.accent)
+                    } else if currentMovies.isEmpty {
+                        emptyState
+                    } else {
+                        LazyVGrid(columns: columns, spacing: 18) {
+                            ForEach(currentMovies) { saved in
+                                NavigationLink(value: saved.summary) {
+                                    MoviePosterCard(movie: saved.summary)
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu { contextMenu(for: saved) }
+                            }
+                        }
+                        .padding()
+                    }
                 }
                 if let error = errorMessage {
                     Text(error).foregroundStyle(.red).padding()
@@ -636,12 +646,109 @@ struct SavedView: View {
         }
     }
 
+    @ViewBuilder
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            Image("MovieBuffIcon")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 96, height: 96)
+                .opacity(0.85)
+            Text(selectedTab == .saved ? "Your list is empty" : "Nothing watched yet")
+                .font(.sectionTitle)
+                .foregroundStyle(.white)
+            Text(selectedTab == .saved
+                 ? "Tap the bookmark on a movie to save it here."
+                 : "Mark a movie as watched to track what you've seen.")
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.55))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 100)
+    }
+
+    @ViewBuilder
+    private func contextMenu(for saved: SavedMovie) -> some View {
+        if selectedTab == .saved {
+            if watchedIDs.contains(saved.imdbID) {
+                Button {
+                    Task { await unmarkWatched(saved) }
+                } label: {
+                    Label("Remove from Watched", systemImage: "eye.slash")
+                }
+            } else {
+                Button {
+                    Task { await markWatched(saved) }
+                } label: {
+                    Label("Mark as Watched", systemImage: "eye")
+                }
+            }
+            Button(role: .destructive) {
+                Task { await removeFromSaved(saved) }
+            } label: {
+                Label("Remove from Watchlist", systemImage: "bookmark.slash")
+            }
+        } else {
+            Button(role: .destructive) {
+                Task { await unmarkWatched(saved) }
+            } label: {
+                Label("Remove from Watched", systemImage: "eye.slash")
+            }
+        }
+    }
+
     private func load() async {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
+
+        // Load each list independently so a failure in one doesn't blank the other
+        // or leave a stuck error banner.
+        async let savedResult = service.savedMovies()
+        async let watchedResult = service.watchedMovies()
+
+        var failures: [String] = []
+        do { movies = try await savedResult } catch { failures.append("watchlist") }
+        do { watched = try await watchedResult } catch { failures.append("watched list") }
+
+        errorMessage = failures.isEmpty
+            ? nil
+            : "Couldn't load your \(failures.joined(separator: " and ")). Pull to refresh."
+    }
+
+    private func markWatched(_ movie: SavedMovie) async {
         do {
-            movies = try await service.savedMovies()
+            try await service.markWatched(
+                SaveMovieRequest(
+                    imdbID: movie.imdbID,
+                    title: movie.title,
+                    year: movie.year,
+                    posterURL: movie.posterURL
+                )
+            )
+            if !watched.contains(where: { $0.imdbID == movie.imdbID }) {
+                watched.insert(movie, at: 0)
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func unmarkWatched(_ movie: SavedMovie) async {
+        do {
+            try await service.unmarkWatched(imdbID: movie.imdbID)
+            watched.removeAll { $0.imdbID == movie.imdbID }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func removeFromSaved(_ movie: SavedMovie) async {
+        do {
+            try await service.unsave(imdbID: movie.imdbID)
+            movies.removeAll { $0.imdbID == movie.imdbID }
         } catch {
             errorMessage = error.localizedDescription
         }
