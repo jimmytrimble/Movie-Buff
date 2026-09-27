@@ -12,6 +12,7 @@ let package = Package(
         .package(url: "https://github.com/vapor/fluent-sqlite-driver.git", from: "4.6.0"),
         .package(url: "https://github.com/vapor/fluent-postgres-driver.git", from: "2.8.0"),
         .package(url: "https://github.com/vapor/apns.git", from: "4.0.0"),
+        .package(url: "https://github.com/apple/app-store-server-library-swift.git", from: "6.0.0"),
     ],
     targets: [
         .executableTarget(
@@ -22,6 +23,11 @@ let package = Package(
                 .product(name: "FluentSQLiteDriver", package: "fluent-sqlite-driver"),
                 .product(name: "FluentPostgresDriver", package: "fluent-postgres-driver"),
                 .product(name: "VaporAPNS", package: "apns"),
+                .product(name: "AppStoreServerLibrary", package: "app-store-server-library-swift"),
+            ],
+            resources: [
+                // Apple Root CA — G3, used to validate the App Store JWS signing chain.
+                .copy("Certs/AppleRootCA-G3.cer"),
             ],
             swiftSettings: [
                 .enableUpcomingFeature("DisallowInputAndLatinScriptEscape"),

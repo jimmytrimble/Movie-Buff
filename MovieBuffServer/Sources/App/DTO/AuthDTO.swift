@@ -45,6 +45,12 @@ struct VerifyAppleSubscriptionRequest: Content {
     let productID: String
 }
 
+/// The body Apple POSTs to our App Store Server Notifications V2 webhook.
+/// See https://developer.apple.com/documentation/appstoreservernotifications/responsebodyv2
+struct AppleNotificationBody: Content {
+    let signedPayload: String
+}
+
 struct UpdateProfileRequest: Content {
     let email: String?
     let displayName: String?

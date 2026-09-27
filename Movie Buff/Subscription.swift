@@ -34,7 +34,7 @@ final class SubscriptionStore {
             // signed outside our purchase() flow (e.g. Family Sharing, restore).
             for await result in StoreKit.Transaction.updates {
                 if case .verified(let transaction) = result {
-                    await self?.sync(transaction: transaction)
+                    await self?.sync(jws: result.jwsRepresentation, productID: transaction.productID)
                     await onEntitlementChange()
                     await transaction.finish()
                 }
@@ -76,13 +76,18 @@ final class SubscriptionStore {
         do {
             let result = try await product.purchase()
             switch result {
-            case .success(.verified(let transaction)):
-                await sync(transaction: transaction)
-                await transaction.finish()
-                return true
-            case .success(.unverified(_, let error)):
-                errorMessage = "Purchase couldn't be verified: \(error.localizedDescription)"
-                return false
+            case .success(let verification):
+                switch verification {
+                case .verified(let transaction):
+                    // Send the *signed* JWS (not the decoded jsonRepresentation) so the
+                    // server can validate it against Apple.
+                    await sync(jws: verification.jwsRepresentation, productID: transaction.productID)
+                    await transaction.finish()
+                    return true
+                case .unverified(_, let error):
+                    errorMessage = "Purchase couldn't be verified: \(error.localizedDescription)"
+                    return false
+                }
             case .userCancelled:
                 return false
             case .pending:
@@ -110,15 +115,16 @@ final class SubscriptionStore {
     // MARK: - Sync to backend
 
     /// Forwards the signed JWS to our server so the User row picks up the new
-    /// `subscriptionExpiresAt`. Failures are surfaced but don't crash the flow —
-    /// on next launch we can retry with the current entitlement.
-    private func sync(transaction: StoreKit.Transaction) async {
-        let jws = transaction.jsonRepresentation  // Data
-        guard let signed = String(data: jws, encoding: .utf8) else { return }
+    /// `subscriptionExpiresAt`. The `jws` must be the `VerificationResult`'s
+    /// `jwsRepresentation` (three-segment JWS), not `Transaction.jsonRepresentation`
+    /// (the decoded payload) — the server validates and parses the JWS form.
+    /// Failures are surfaced but don't crash the flow — on next launch we can retry
+    /// with the current entitlement.
+    private func sync(jws: String, productID: String) async {
         do {
             _ = try await service.verifyApple(
-                signedTransaction: signed,
-                productID: transaction.productID
+                signedTransaction: jws,
+                productID: productID
             )
         } catch {
             errorMessage = "Server couldn't verify subscription: \(error.localizedDescription)"
@@ -130,7 +136,7 @@ final class SubscriptionStore {
     func syncCurrentEntitlements() async {
         for await result in StoreKit.Transaction.currentEntitlements {
             if case .verified(let transaction) = result {
-                await sync(transaction: transaction)
+                await sync(jws: result.jwsRepresentation, productID: transaction.productID)
             }
         }
     }
