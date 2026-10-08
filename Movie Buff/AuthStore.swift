@@ -3,27 +3,50 @@ import Security
 
 enum KeychainHelper {
     private static let service = "com.moviebuff.auth"
+    /// App Group keychain shared with the Share Extension so it can authenticate
+    /// API calls without the user leaving the host app. iOS-only: macOS app-group
+    /// keychain access requires a team-prefixed group instead.
+    private static let sharedAccessGroup = "group.JJ.Movie-Buff"
+
+    private static func baseQuery(for key: String, shared: Bool) -> [String: Any] {
+        var query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key
+        ]
+        #if os(iOS)
+        if shared {
+            query[kSecAttrAccessGroup as String] = sharedAccessGroup
+        }
+        #endif
+        return query
+    }
 
     static func save(_ value: String, for key: String) {
         delete(key: key)
         guard let data = value.data(using: .utf8) else { return }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecValueData as String: data
-        ]
+        var query = baseQuery(for: key, shared: true)
+        query[kSecValueData as String] = data
         SecItemAdd(query as CFDictionary, nil)
     }
 
     static func read(key: String) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
+        if let value = read(key: key, shared: true) {
+            return value
+        }
+        // Migrate items saved before keychain sharing: re-save into the shared
+        // group so the Share Extension can see them from now on.
+        if let legacy = read(key: key, shared: false) {
+            save(legacy, for: key)
+            return legacy
+        }
+        return nil
+    }
+
+    private static func read(key: String, shared: Bool) -> String? {
+        var query = baseQuery(for: key, shared: shared)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: AnyObject?
         SecItemCopyMatching(query as CFDictionary, &result)
         guard let data = result as? Data else { return nil }
@@ -31,12 +54,8 @@ enum KeychainHelper {
     }
 
     static func delete(key: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key
-        ]
-        SecItemDelete(query as CFDictionary)
+        SecItemDelete(baseQuery(for: key, shared: true) as CFDictionary)
+        SecItemDelete(baseQuery(for: key, shared: false) as CFDictionary)
     }
 }
 

@@ -189,6 +189,25 @@ struct SavedMovieDTO: Content {
     }
 }
 
+/// A single movie/TV title extracted on-device from a shared post.
+struct TitleInput: Content {
+    let title: String
+    let year: String?
+}
+
+struct ResolveTitlesRequest: Content {
+    let titles: [TitleInput]
+}
+
+struct ExtractMoviesResponse: Content {
+    let matches: [OMDBSearchResult]
+    let unmatched: [String]
+}
+
+struct BatchSaveRequest: Content {
+    let movies: [SaveMovieRequest]
+}
+
 struct WatchedMovieDTO: Content {
     let id: UUID
     let imdbID: String

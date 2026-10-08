@@ -3,6 +3,8 @@ import SwiftUI
 struct ContentView: View {
     @State private var auth = AuthStore()
     @State private var subscriptions = SubscriptionStore()
+    @State private var deepLink = DeepLinkRouter()
+    @State private var showPaywall = false
     #if os(iOS)
     @Environment(PushCoordinator.self) private var push
     #endif
@@ -18,6 +20,23 @@ struct ContentView: View {
         .environment(auth)
         .environment(subscriptions)
         .preferredColorScheme(.dark)
+        .onOpenURL { deepLink.handle($0) }
+        .onChange(of: deepLink.pendingRoute) { _, route in
+            guard let route else { return }
+            switch route {
+            case .premium:
+                showPaywall = true
+            case .signIn:
+                // Drop out of guest mode so the sign-in / create-account flow shows.
+                if auth.isGuest { auth.exitGuestMode() }
+            }
+            deepLink.clear()
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
+                .environment(auth)
+                .environment(subscriptions)
+        }
         .task {
             await auth.restore()
             // Kick off StoreKit listeners. Any renewal/refund/family-sharing event

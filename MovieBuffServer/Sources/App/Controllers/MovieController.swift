@@ -18,7 +18,13 @@ struct MovieController: RouteCollection {
         let myMovies = premium.grouped("me", "movies")
         myMovies.get(use: list)
         myMovies.post(use: save)
+        myMovies.post("batch", use: saveBatch)
         myMovies.delete(":imdbID", use: unsave)
+
+        // Premium: resolve movie/TV titles to real OMDB entries. Titles are
+        // extracted on-device (Foundation Models) by the Share Extension; the
+        // server only matches them against OMDB for imdbIDs + posters.
+        premium.post("movies", "resolve", use: resolve)
 
         // Premium: "watched" list — tracks titles the user has already seen.
         // Independent of the saved list, so a movie can be in both.
@@ -364,6 +370,101 @@ struct MovieController: RouteCollection {
         )
         try await movie.save(on: req.db)
         return try SavedMovieDTO(movie)
+    }
+
+    /// Resolves movie/TV titles (extracted on-device from a shared post) against
+    /// OMDB, returning real imdbIDs + posters the client can save directly.
+    /// Titles that OMDB can't match are reported back in `unmatched`.
+    @Sendable
+    func resolve(req: Request) async throws -> ExtractMoviesResponse {
+        _ = try req.auth.require(User.self)
+        let body = try req.content.decode(ResolveTitlesRequest.self)
+
+        // Drop blanks and cap the count so a client can't fan out OMDB calls.
+        let titles = body.titles
+            .map { TitleInput(title: $0.title.trimmingCharacters(in: .whitespacesAndNewlines), year: $0.year) }
+            .filter { !$0.title.isEmpty }
+            .prefix(15)
+        guard !titles.isEmpty else {
+            return ExtractMoviesResponse(matches: [], unmatched: [])
+        }
+
+        let omdb = try OMDBService.make(for: req)
+        let resolved: [(Int, OMDBSearchResult?, String)] = await withTaskGroup(
+            of: (Int, OMDBSearchResult?, String).self
+        ) { group in
+            for (index, title) in titles.enumerated() {
+                group.addTask {
+                    let match = try? await Self.resolveTitle(title, omdb: omdb)
+                    return (index, match, title.title)
+                }
+            }
+            var collected: [(Int, OMDBSearchResult?, String)] = []
+            for await entry in group { collected.append(entry) }
+            return collected.sorted { $0.0 < $1.0 }
+        }
+
+        var seen = Set<String>()
+        var matches: [OMDBSearchResult] = []
+        var unmatched: [String] = []
+        for (_, match, title) in resolved {
+            if let match {
+                if seen.insert(match.imdbID).inserted { matches.append(match) }
+            } else {
+                unmatched.append(title)
+            }
+        }
+        req.logger.info("Resolve: \(titles.count) titles → \(matches.count) matched, \(unmatched.count) unmatched")
+        return ExtractMoviesResponse(matches: matches, unmatched: unmatched)
+    }
+
+    /// Picks the best OMDB search hit for a title: prefer an exact
+    /// case-insensitive title match (and matching year when we have one),
+    /// falling back to OMDB's top result.
+    private static func resolveTitle(
+        _ input: TitleInput,
+        omdb: OMDBService
+    ) async throws -> OMDBSearchResult? {
+        let response = try await omdb.search(query: input.title)
+        guard !response.results.isEmpty else { return nil }
+
+        let target = input.title.lowercased()
+        let exactTitle = response.results.filter { $0.title.lowercased() == target }
+        if let year = input.year, !year.isEmpty,
+           let match = exactTitle.first(where: { $0.year?.hasPrefix(year) == true }) {
+            return match
+        }
+        return exactTitle.first ?? response.results.first
+    }
+
+    /// Saves several movies in one call (Share Extension confirmation screen).
+    /// Duplicates are returned as-is rather than re-inserted, matching `save`.
+    @Sendable
+    func saveBatch(req: Request) async throws -> [SavedMovieDTO] {
+        let user = try req.auth.require(User.self)
+        let userID = try user.requireID()
+        let body = try req.content.decode(BatchSaveRequest.self)
+
+        var saved: [SavedMovieDTO] = []
+        for item in body.movies.prefix(25) {
+            if let existing = try await SavedMovie.query(on: req.db)
+                .filter(\.$user.$id == userID)
+                .filter(\.$imdbID == item.imdbID)
+                .first() {
+                saved.append(try SavedMovieDTO(existing))
+                continue
+            }
+            let movie = SavedMovie(
+                userID: userID,
+                imdbID: item.imdbID,
+                title: item.title,
+                year: item.year,
+                posterURL: item.posterURL
+            )
+            try await movie.save(on: req.db)
+            saved.append(try SavedMovieDTO(movie))
+        }
+        return saved
     }
 
     @Sendable

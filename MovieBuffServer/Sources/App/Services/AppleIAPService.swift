@@ -15,7 +15,7 @@ struct DecodedTransaction: Sendable {
 /// certificate chain, using Apple's `AppStoreServerLibrary`.
 ///
 /// Configuration (environment variables):
-///   - `APPLE_BUNDLE_ID`         The app's bundle id (default: `JJ.Movie-Buff`).
+///   - `APNS_BUNDLE_ID`         The app's bundle id (default: `JJ.Movie-Buff`).
 ///   - `APPLE_APP_APPLE_ID`      The app's numeric App Store id. Required to verify
 ///                               *production* transactions; sandbox works without it.
 ///   - `APPLE_IAP_ONLINE_CHECKS` `"true"` to enable OCSP revocation + expiry checks.
@@ -41,7 +41,7 @@ struct AppleIAPService {
             return AppleIAPService(verifiers: [], allowUnverified: true)
         }
 
-        let bundleId = Environment.get("APPLE_BUNDLE_ID") ?? "JJ.Movie-Buff"
+        let bundleId = Environment.get("APNS_BUNDLE_ID") ?? "JJ.Movie-Buff"
         let appAppleId = Environment.get("APPLE_APP_APPLE_ID").flatMap { Int64($0) }
         let onlineChecks = Environment.get("APPLE_IAP_ONLINE_CHECKS")?.lowercased() == "true"
         let rootCerts = try loadRootCertificates()
