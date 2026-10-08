@@ -620,11 +620,23 @@ struct ProfileService {
         try await client.request(path: "/profile/\(userID.uuidString)", authorized: true)
     }
 
-    func updateInfo(bio: String?, isPublic: Bool?) async throws -> ProfileDTO {
+    func updateInfo(
+        bio: String? = nil,
+        isPublic: Bool? = nil,
+        savedVisibility: String? = nil,
+        commentsVisibility: String? = nil,
+        ratingsVisibility: String? = nil
+    ) async throws -> ProfileDTO {
         try await client.request(
             path: "/profile/me",
             method: "PATCH",
-            body: UpdateProfileInfoRequest(bio: bio, isPublic: isPublic),
+            body: UpdateProfileInfoRequest(
+                bio: bio,
+                isPublic: isPublic,
+                savedVisibility: savedVisibility,
+                commentsVisibility: commentsVisibility,
+                ratingsVisibility: ratingsVisibility
+            ),
             authorized: true
         )
     }

@@ -22,6 +22,10 @@ final class User: Model, @unchecked Sendable {
     /// When true, the user can be found in profile search and their profile is
     /// viewable by anyone. When false, only the user and accepted friends can view it.
     @Field(key: "is_public") var isPublic: Bool
+    /// Per-section visibility: "private" (only me), "friends", or "public".
+    @Field(key: "saved_visibility") var savedVisibility: String
+    @Field(key: "comments_visibility") var commentsVisibility: String
+    @Field(key: "ratings_visibility") var ratingsVisibility: String
     /// Avatar stored as resized JPEG bytes (client downscales before upload), so it
     /// survives Render's ephemeral filesystem without external object storage.
     @OptionalField(key: "avatar_data") var avatarData: Data?
@@ -44,6 +48,9 @@ final class User: Model, @unchecked Sendable {
         self.passwordHash = passwordHash
         self.displayName = displayName
         self.isPublic = false
+        self.savedVisibility = ProfileVisibility.friends.rawValue
+        self.commentsVisibility = ProfileVisibility.friends.rawValue
+        self.ratingsVisibility = ProfileVisibility.friends.rawValue
     }
 
     func generateToken() throws -> UserToken {

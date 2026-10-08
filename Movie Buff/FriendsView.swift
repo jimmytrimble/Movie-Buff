@@ -270,7 +270,7 @@ struct FriendsView: View {
                 .environment(subscriptions)
         }
         .navigationDestination(for: FriendDTO.self) { friend in
-            FriendMoviesView(friend: friend)
+            PublicProfileView(userID: friend.user.id, preloadedName: friend.displayLabel, friend: friend)
         }
         .navigationDestination(for: UserDTO.self) { user in
             PublicProfileView(userID: user.id, preloadedName: user.displayName)

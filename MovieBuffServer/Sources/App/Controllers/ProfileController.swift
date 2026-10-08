@@ -43,6 +43,15 @@ struct ProfileController: RouteCollection {
         if let isPublic = body.isPublic {
             user.isPublic = isPublic
         }
+        if let raw = body.savedVisibility {
+            user.savedVisibility = try validatedVisibility(raw)
+        }
+        if let raw = body.commentsVisibility {
+            user.commentsVisibility = try validatedVisibility(raw)
+        }
+        if let raw = body.ratingsVisibility {
+            user.ratingsVisibility = try validatedVisibility(raw)
+        }
 
         try await user.save(on: req.db)
         return try await buildProfile(for: user, viewer: user, isFriend: false, on: req.db)
@@ -135,24 +144,30 @@ struct ProfileController: RouteCollection {
     ) async throws -> ProfileDTO {
         let ownerID = try owner.requireID()
         let viewerID = try viewer.requireID()
+        let isSelf = ownerID == viewerID
 
-        let saved = try await SavedMovie.query(on: db)
+        // Each section is shown only if its visibility allows this viewer.
+        let canSaved = ProfileVisibility.parse(owner.savedVisibility).allows(isSelf: isSelf, isFriend: isFriend)
+        let canComments = ProfileVisibility.parse(owner.commentsVisibility).allows(isSelf: isSelf, isFriend: isFriend)
+        let canRatings = ProfileVisibility.parse(owner.ratingsVisibility).allows(isSelf: isSelf, isFriend: isFriend)
+
+        let saved = canSaved ? try await SavedMovie.query(on: db)
             .filter(\.$user.$id == ownerID)
             .sort(\.$addedAt, .descending)
             .limit(listLimit)
-            .all()
+            .all() : []
 
-        let comments = try await Comment.query(on: db)
+        let comments = canComments ? try await Comment.query(on: db)
             .filter(\.$user.$id == ownerID)
             .sort(\.$createdAt, .descending)
             .limit(listLimit)
-            .all()
+            .all() : []
 
-        let ratings = try await ReelRating.query(on: db)
+        let ratings = canRatings ? try await ReelRating.query(on: db)
             .filter(\.$user.$id == ownerID)
             .sort(\.$ratedAt, .descending)
             .limit(listLimit)
-            .all()
+            .all() : []
 
         return ProfileDTO(
             user: try UserDTO(owner),
@@ -172,6 +187,13 @@ struct ProfileController: RouteCollection {
             },
             ratings: ratings.map { ProfileRatingDTO(imdbID: $0.imdbID, rating: $0.rating) }
         )
+    }
+
+    private func validatedVisibility(_ raw: String) throws -> String {
+        guard let value = ProfileVisibility(rawValue: raw) else {
+            throw Abort(.badRequest, reason: "Invalid visibility: \(raw)")
+        }
+        return value.rawValue
     }
 
     private func acceptedFriendshipExists(

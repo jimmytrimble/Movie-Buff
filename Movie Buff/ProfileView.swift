@@ -74,6 +74,9 @@ struct ProfileView: View {
     @State private var bioDraft = ""
     @State private var isEditingBio = false
     @State private var isPublic = false
+    @State private var savedVis: ProfileVisibility = .friends
+    @State private var commentsVis: ProfileVisibility = .friends
+    @State private var ratingsVis: ProfileVisibility = .friends
     @State private var isSavingInfo = false
 
     @State private var photoItem: PhotosPickerItem?
@@ -94,6 +97,7 @@ struct ProfileView: View {
                         VStack(alignment: .leading, spacing: 20) {
                             header
                             visibilitySection
+                            sectionPrivacySection
                             statsBar
                             ProfileContentTabs(profile: profile, selectedTab: $selectedTab)
                         }
@@ -225,6 +229,45 @@ struct ProfileView: View {
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
     }
 
+    /// Per-section visibility: who can see each part of the profile.
+    private var sectionPrivacySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Who can see")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+            visibilityPickerRow(title: "Saved list", selection: $savedVis) { newValue in
+                Task { await saveInfo(savedVisibility: newValue) }
+            }
+            visibilityPickerRow(title: "Comments", selection: $commentsVis) { newValue in
+                Task { await saveInfo(commentsVisibility: newValue) }
+            }
+            visibilityPickerRow(title: "Ratings", selection: $ratingsVis) { newValue in
+                Task { await saveInfo(ratingsVisibility: newValue) }
+            }
+        }
+        .padding(12)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func visibilityPickerRow(
+        title: String,
+        selection: Binding<ProfileVisibility>,
+        onChange: @escaping (ProfileVisibility) -> Void
+    ) -> some View {
+        // Custom binding so only user changes save (not programmatic load()).
+        let binding = Binding<ProfileVisibility>(
+            get: { selection.wrappedValue },
+            set: { newValue in selection.wrappedValue = newValue; onChange(newValue) }
+        )
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.caption).foregroundStyle(.white.opacity(0.7))
+            Picker(title, selection: binding) {
+                ForEach(ProfileVisibility.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
     private var statsBar: some View {
         HStack(spacing: 0) {
             stat(count: profile?.savedCount ?? 0, label: "Saved")
@@ -301,22 +344,34 @@ struct ProfileView: View {
             profile = loaded
             isPublic = loaded.user.isPublic ?? false
             bioDraft = loaded.user.bio ?? ""
+            savedVis = loaded.user.savedVisibility.flatMap(ProfileVisibility.init) ?? .friends
+            commentsVis = loaded.user.commentsVisibility.flatMap(ProfileVisibility.init) ?? .friends
+            ratingsVis = loaded.user.ratingsVisibility.flatMap(ProfileVisibility.init) ?? .friends
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    private func saveInfo(bio: String? = nil, isPublic newPublic: Bool? = nil) async {
+    private func saveInfo(
+        bio: String? = nil,
+        isPublic newPublic: Bool? = nil,
+        savedVisibility: ProfileVisibility? = nil,
+        commentsVisibility: ProfileVisibility? = nil,
+        ratingsVisibility: ProfileVisibility? = nil
+    ) async {
         isSavingInfo = true
         defer { isSavingInfo = false }
         do {
             let updated = try await service.updateInfo(
                 bio: bio?.trimmingCharacters(in: .whitespacesAndNewlines),
-                isPublic: newPublic
+                isPublic: newPublic,
+                savedVisibility: savedVisibility?.rawValue,
+                commentsVisibility: commentsVisibility?.rawValue,
+                ratingsVisibility: ratingsVisibility?.rawValue
             )
             profile = updated
             self.isPublic = updated.user.isPublic ?? false
-            isEditingBio = false
+            if bio != nil { isEditingBio = false }
             await auth.refreshUser()
         } catch {
             errorMessage = error.localizedDescription

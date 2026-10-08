@@ -10,8 +10,27 @@ struct User: Codable, Identifiable, Hashable {
     var bio: String?
     var isPublic: Bool?
     var avatarBase64: String?
+    var savedVisibility: String?
+    var commentsVisibility: String?
+    var ratingsVisibility: String?
 
     var avatarImageData: Data? { avatarBase64.flatMap { Data(base64Encoded: $0) } }
+}
+
+/// Who can see a profile section. Raw values match the server.
+enum ProfileVisibility: String, Codable, CaseIterable, Identifiable {
+    case `private`
+    case friends
+    case `public`
+
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .private: return "Only me"
+        case .friends: return "Friends"
+        case .public:  return "Public"
+        }
+    }
 }
 
 struct RegisterRequest: Codable {
@@ -63,6 +82,9 @@ struct UserDTO: Codable, Identifiable, Hashable {
     var bio: String?
     var isPublic: Bool?
     var avatarBase64: String?
+    var savedVisibility: String?
+    var commentsVisibility: String?
+    var ratingsVisibility: String?
 
     var avatarImageData: Data? { avatarBase64.flatMap { Data(base64Encoded: $0) } }
 
@@ -505,6 +527,9 @@ struct ProfileRatingDTO: Codable, Identifiable, Hashable {
 struct UpdateProfileInfoRequest: Codable {
     let bio: String?
     let isPublic: Bool?
+    let savedVisibility: String?
+    let commentsVisibility: String?
+    let ratingsVisibility: String?
 }
 
 struct UploadAvatarRequest: Codable {

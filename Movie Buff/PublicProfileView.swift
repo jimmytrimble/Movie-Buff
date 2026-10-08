@@ -5,6 +5,8 @@ import SwiftUI
 struct PublicProfileView: View {
     let userID: UUID
     var preloadedName: String?
+    /// Present when opened from the friends list — enables the Watch Party action.
+    var friend: FriendDTO?
 
     @Environment(AuthStore.self) private var auth
     @Environment(SubscriptionStore.self) private var subscriptions
@@ -17,6 +19,8 @@ struct PublicProfileView: View {
     @State private var chatTarget: UserDTO?
     @State private var showPaywall = false
     @State private var requestSent = false
+    @State private var showingWatchParty = false
+    @State private var activeParty: WatchPartyDTO?
 
     private let profileService = ProfileService()
     private let friendService = FriendService()
@@ -59,10 +63,20 @@ struct PublicProfileView: View {
         .navigationDestination(item: $chatTarget) { user in
             ChatView(otherUser: user)
         }
+        .navigationDestination(item: $activeParty) { party in
+            if let uid = auth.user?.id {
+                WatchPartySwipeView(party: party, currentUserID: uid)
+            }
+        }
         .sheet(isPresented: $showPaywall) {
             PaywallView(reason: "Messaging friends is a Premium feature.")
                 .environment(auth)
                 .environment(subscriptions)
+        }
+        .sheet(isPresented: $showingWatchParty) {
+            if let friend {
+                WatchPartySetupView(friend: friend) { party in activeParty = party }
+            }
         }
         .task { await load() }
     }
@@ -88,21 +102,37 @@ struct PublicProfileView: View {
     private func actionRow(_ profile: ProfileDTO) -> some View {
         if !profile.isSelf {
             if profile.isFriend {
-                Button {
-                    if auth.isPremium { chatTarget = profile.user }
-                    else { showPaywall = true }
-                } label: {
-                    Label("Message", systemImage: "bubble.left.and.bubble.right.fill")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(
-                            LinearGradient(colors: [Theme.gold, Theme.goldSoft],
-                                           startPoint: .leading, endPoint: .trailing),
-                            in: RoundedRectangle(cornerRadius: 12))
-                        .foregroundStyle(.black)
+                VStack(spacing: 10) {
+                    Button {
+                        if auth.isPremium { chatTarget = profile.user }
+                        else { showPaywall = true }
+                    } label: {
+                        Label("Message", systemImage: "bubble.left.and.bubble.right.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(
+                                LinearGradient(colors: [Theme.gold, Theme.goldSoft],
+                                               startPoint: .leading, endPoint: .trailing),
+                                in: RoundedRectangle(cornerRadius: 12))
+                            .foregroundStyle(.black)
+                    }
+                    .buttonStyle(.plain)
+
+                    if friend != nil {
+                        Button {
+                            showingWatchParty = true
+                        } label: {
+                            Label("Watch Party", systemImage: "play.rectangle.on.rectangle.fill")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+                                .foregroundStyle(Theme.accent)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(.plain)
             } else if requestSent {
                 Text("Friend request sent")
                     .font(.subheadline).foregroundStyle(.white.opacity(0.6))

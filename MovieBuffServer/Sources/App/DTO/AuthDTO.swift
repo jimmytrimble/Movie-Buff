@@ -31,6 +31,10 @@ struct UserDTO: Content {
     /// Avatar as a base64 JPEG (small, client-downscaled). Delivered inline to
     /// avoid authenticated-image-URL handling on the client.
     let avatarBase64: String?
+    // Per-section visibility ("private" | "friends" | "public"), for the editor.
+    let savedVisibility: String
+    let commentsVisibility: String
+    let ratingsVisibility: String
 
     init(_ user: User) throws {
         self.id = try user.requireID()
@@ -42,6 +46,9 @@ struct UserDTO: Content {
         self.bio = user.bio
         self.isPublic = user.isPublic
         self.avatarBase64 = user.avatarData?.base64EncodedString()
+        self.savedVisibility = user.savedVisibility
+        self.commentsVisibility = user.commentsVisibility
+        self.ratingsVisibility = user.ratingsVisibility
     }
 }
 
