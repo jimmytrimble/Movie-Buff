@@ -18,6 +18,28 @@ enum PushService {
         let imdbID: String?
     }
 
+    struct MessagePayload: Codable {
+        let type: String        // "direct_message"
+        let senderID: String
+    }
+
+    static func sendMessageNotification(
+        recipientID: User.IDValue,
+        senderID: User.IDValue,
+        senderDisplayName: String,
+        preview: String,
+        on req: Request
+    ) async {
+        await sendGeneric(
+            to: recipientID,
+            title: senderDisplayName,
+            subtitle: nil,
+            body: preview,
+            payload: MessagePayload(type: "direct_message", senderID: senderID.uuidString),
+            on: req
+        )
+    }
+
     static func sendWatchPartyInvite(
         recipientID: User.IDValue,
         senderDisplayName: String,

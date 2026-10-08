@@ -87,9 +87,12 @@ struct FriendsView: View {
     @State private var errorMessage: String?
     @State private var infoMessage: String?
     @State private var showingInbox = false
+    @State private var showingMessages = false
+    @State private var messagesUnread = 0
     @State private var activeParty: WatchPartyDTO?
 
     private let service = FriendService()
+    private let messageService = MessageService()
 
     private var trimmedQuery: String {
         searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -213,6 +216,28 @@ struct FriendsView: View {
                         .foregroundStyle(.white)
                 }
             }
+            if auth.isPremium {
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        showingMessages = true
+                    } label: {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "bubble.left.and.bubble.right.fill")
+                                .font(.title3)
+                                .foregroundStyle(Theme.accent)
+                            if messagesUnread > 0 {
+                                Text("\(messagesUnread)")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(Color.red, in: Capsule())
+                                    .offset(x: 8, y: -6)
+                            }
+                        }
+                    }
+                }
+            }
             ToolbarItem(placement: .automatic) {
                 Button {
                     showingInbox = true
@@ -238,8 +263,14 @@ struct FriendsView: View {
             SharesInboxView()
                 .environment(notifications)
         }
+        .sheet(isPresented: $showingMessages) {
+            MessagesView()
+        }
         .navigationDestination(for: FriendDTO.self) { friend in
             FriendMoviesView(friend: friend)
+        }
+        .navigationDestination(for: UserDTO.self) { user in
+            PublicProfileView(userID: user.id, preloadedName: user.displayName)
         }
         .navigationDestination(item: $activeParty) { party in
             if let uid = auth.user?.id {
@@ -247,7 +278,10 @@ struct FriendsView: View {
             }
         }
         .task {
-            if auth.isPremium { await notifications.refresh() }
+            if auth.isPremium {
+                await notifications.refresh()
+                messagesUnread = (try? await messageService.unreadCount()) ?? 0
+            }
         }
         .task(id: trimmedQuery) {
             if auth.isPremium { await runSearch() }
@@ -493,18 +527,24 @@ private struct UserSearchRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AvatarView(label: displayLabel)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(displayLabel)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                if let name = user.displayName, !name.isEmpty, name != user.email {
-                    Text(user.email)
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.5))
+            NavigationLink(value: user) {
+                HStack(spacing: 12) {
+                    AvatarView(label: displayLabel)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(displayLabel)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                        if let name = user.displayName, !name.isEmpty, name != user.email {
+                            Text(user.email)
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
+                    }
+                    Spacer()
                 }
+                .contentShape(Rectangle())
             }
-            Spacer()
+            .buttonStyle(.plain)
             Button {
                 Task {
                     isAdding = true

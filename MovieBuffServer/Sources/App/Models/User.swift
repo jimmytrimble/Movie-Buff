@@ -17,6 +17,16 @@ final class User: Model, @unchecked Sendable {
     @OptionalField(key: "subscription_original_id") var subscriptionOriginalID: String?
     @OptionalField(key: "subscription_product_id") var subscriptionProductID: String?
 
+    // Profile — a general (non-premium) feature.
+    @OptionalField(key: "bio") var bio: String?
+    /// When true, the user can be found in profile search and their profile is
+    /// viewable by anyone. When false, only the user and accepted friends can view it.
+    @Field(key: "is_public") var isPublic: Bool
+    /// Avatar stored as resized JPEG bytes (client downscales before upload), so it
+    /// survives Render's ephemeral filesystem without external object storage.
+    @OptionalField(key: "avatar_data") var avatarData: Data?
+    @OptionalField(key: "avatar_content_type") var avatarContentType: String?
+
     @Children(for: \.$user) var savedMovies: [SavedMovie]
     @Children(for: \.$user) var tokens: [UserToken]
 
@@ -33,6 +43,7 @@ final class User: Model, @unchecked Sendable {
         self.email = email.lowercased()
         self.passwordHash = passwordHash
         self.displayName = displayName
+        self.isPublic = false
     }
 
     func generateToken() throws -> UserToken {

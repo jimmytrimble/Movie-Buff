@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		41110E69304605A100B53591 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41110E68304605A100B53591 /* StoreKit.framework */; };
+		417DDAEB30774F30001B4C14 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 417DDAE130774F30001B4C14 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,7 +26,28 @@
 			remoteGlobalIDString = 41110DDB30126A7700B53591;
 			remoteInfo = "Movie Buff";
 		};
+		417DDAE930774F30001B4C14 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 41110DD430126A7700B53591 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 417DDAE030774F30001B4C14;
+			remoteInfo = ShareExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		417DDAF030774F30001B4C14 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				417DDAEB30774F30001B4C14 /* ShareExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		41110DDC30126A7700B53591 /* Movie Buff.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Movie Buff.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -33,24 +55,22 @@
 		41110DF530126A7900B53591 /* Movie BuffUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Movie BuffUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		41110E54301672C000B53591 /* MovieBuffServer */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = MovieBuffServer; sourceTree = "<group>"; };
 		41110E68304605A100B53591 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		417DDAE130774F30001B4C14 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		417DDADC307729F2001B4C14 /* Exceptions for "Movie Buff" folder in "Movie Buff" target */ = {
+		417DDAEF30774F30001B4C14 /* Exceptions for "ShareExtension" folder in "ShareExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"Movie-Buff-Info.plist",
+				Info.plist,
 			);
-			target = 41110DDB30126A7700B53591 /* Movie Buff */;
+			target = 417DDAE030774F30001B4C14 /* ShareExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		41110DDE30126A7700B53591 /* Movie Buff */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				417DDADC307729F2001B4C14 /* Exceptions for "Movie Buff" folder in "Movie Buff" target */,
-			);
 			path = "Movie Buff";
 			sourceTree = "<group>";
 		};
@@ -62,6 +82,14 @@
 		41110DF830126A7900B53591 /* Movie BuffUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "Movie BuffUITests";
+			sourceTree = "<group>";
+		};
+		417DDAE230774F30001B4C14 /* ShareExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				417DDAEF30774F30001B4C14 /* Exceptions for "ShareExtension" folder in "ShareExtension" target */,
+			);
+			path = ShareExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -89,6 +117,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		417DDADE30774F30001B4C14 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -99,6 +134,7 @@
 				41110DDE30126A7700B53591 /* Movie Buff */,
 				41110DEE30126A7900B53591 /* Movie BuffTests */,
 				41110DF830126A7900B53591 /* Movie BuffUITests */,
+				417DDAE230774F30001B4C14 /* ShareExtension */,
 				41110E67304605A100B53591 /* Frameworks */,
 				41110DDD30126A7700B53591 /* Products */,
 			);
@@ -110,6 +146,7 @@
 				41110DDC30126A7700B53591 /* Movie Buff.app */,
 				41110DEB30126A7900B53591 /* Movie BuffTests.xctest */,
 				41110DF530126A7900B53591 /* Movie BuffUITests.xctest */,
+				417DDAE130774F30001B4C14 /* ShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -132,10 +169,12 @@
 				41110DD830126A7700B53591 /* Sources */,
 				41110DD930126A7700B53591 /* Frameworks */,
 				41110DDA30126A7700B53591 /* Resources */,
+				417DDAF030774F30001B4C14 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				417DDAEA30774F30001B4C14 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				41110DDE30126A7700B53591 /* Movie Buff */,
@@ -193,6 +232,28 @@
 			productReference = 41110DF530126A7900B53591 /* Movie BuffUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		417DDAE030774F30001B4C14 /* ShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 417DDAEC30774F30001B4C14 /* Build configuration list for PBXNativeTarget "ShareExtension" */;
+			buildPhases = (
+				417DDADD30774F30001B4C14 /* Sources */,
+				417DDADE30774F30001B4C14 /* Frameworks */,
+				417DDADF30774F30001B4C14 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				417DDAE230774F30001B4C14 /* ShareExtension */,
+			);
+			name = ShareExtension;
+			packageProductDependencies = (
+			);
+			productName = ShareExtension;
+			productReference = 417DDAE130774F30001B4C14 /* ShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -200,7 +261,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2650;
+				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					41110DDB30126A7700B53591 = {
@@ -213,6 +274,9 @@
 					41110DF430126A7900B53591 = {
 						CreatedOnToolsVersion = 26.5;
 						TestTargetID = 41110DDB30126A7700B53591;
+					};
+					417DDAE030774F30001B4C14 = {
+						CreatedOnToolsVersion = 26.6;
 					};
 				};
 			};
@@ -236,6 +300,7 @@
 				41110DDB30126A7700B53591 /* Movie Buff */,
 				41110DEA30126A7900B53591 /* Movie BuffTests */,
 				41110DF430126A7900B53591 /* Movie BuffUITests */,
+				417DDAE030774F30001B4C14 /* ShareExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -256,6 +321,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		41110DF330126A7900B53591 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		417DDADF30774F30001B4C14 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -286,6 +358,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		417DDADD30774F30001B4C14 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -298,6 +377,11 @@
 			isa = PBXTargetDependency;
 			target = 41110DDB30126A7700B53591 /* Movie Buff */;
 			targetProxy = 41110DF630126A7900B53591 /* PBXContainerItemProxy */;
+		};
+		417DDAEA30774F30001B4C14 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 417DDAE030774F30001B4C14 /* ShareExtension */;
+			targetProxy = 417DDAE930774F30001B4C14 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -612,6 +696,67 @@
 			};
 			name = Release;
 		};
+		417DDAED30774F30001B4C14 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = G4MXLY4M44;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ShareExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "JJ.Movie-Buff.ShareExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		417DDAEE30774F30001B4C14 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = G4MXLY4M44;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ShareExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "JJ.Movie-Buff.ShareExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -647,6 +792,15 @@
 			buildConfigurations = (
 				41110E0630126A7900B53591 /* Debug */,
 				41110E0730126A7900B53591 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		417DDAEC30774F30001B4C14 /* Build configuration list for PBXNativeTarget "ShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				417DDAED30774F30001B4C14 /* Debug */,
+				417DDAEE30774F30001B4C14 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

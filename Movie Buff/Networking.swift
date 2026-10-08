@@ -607,3 +607,76 @@ struct CommentService {
         )
     }
 }
+
+struct ProfileService {
+    let client: APIClient
+    init(client: APIClient = .shared) { self.client = client }
+
+    func me() async throws -> ProfileDTO {
+        try await client.request(path: "/profile/me", authorized: true)
+    }
+
+    func profile(userID: UUID) async throws -> ProfileDTO {
+        try await client.request(path: "/profile/\(userID.uuidString)", authorized: true)
+    }
+
+    func updateInfo(bio: String?, isPublic: Bool?) async throws -> ProfileDTO {
+        try await client.request(
+            path: "/profile/me",
+            method: "PATCH",
+            body: UpdateProfileInfoRequest(bio: bio, isPublic: isPublic),
+            authorized: true
+        )
+    }
+
+    func uploadAvatar(imageBase64: String) async throws -> UserDTO {
+        try await client.request(
+            path: "/profile/me/avatar",
+            method: "PUT",
+            body: UploadAvatarRequest(imageBase64: imageBase64),
+            authorized: true
+        )
+    }
+
+    func deleteAvatar() async throws -> UserDTO {
+        try await client.request(path: "/profile/me/avatar", method: "DELETE", authorized: true)
+    }
+
+    func search(query: String) async throws -> [UserDTO] {
+        try await client.request(
+            path: "/profile/search",
+            query: [URLQueryItem(name: "q", value: query)],
+            authorized: true
+        )
+    }
+}
+
+struct MessageService {
+    let client: APIClient
+    init(client: APIClient = .shared) { self.client = client }
+
+    func conversations() async throws -> [ConversationDTO] {
+        try await client.request(path: "/messages/conversations", authorized: true)
+    }
+
+    func unreadCount() async throws -> Int {
+        let response: UnreadCountResponse = try await client.request(
+            path: "/messages/unread-count",
+            authorized: true
+        )
+        return response.count
+    }
+
+    func thread(userID: UUID) async throws -> [MessageDTO] {
+        try await client.request(path: "/messages/with/\(userID.uuidString)", authorized: true)
+    }
+
+    func send(userID: UUID, body: String?, movie: MessageMovieDTO?) async throws -> MessageDTO {
+        try await client.request(
+            path: "/messages/with/\(userID.uuidString)",
+            method: "POST",
+            body: SendMessageRequest(body: body, movie: movie),
+            authorized: true
+        )
+    }
+}

@@ -6,10 +6,11 @@ import UniformTypeIdentifiers
 /// Principal class for the Share Extension (referenced by Info.plist).
 ///
 /// The extension never shows the host app. It reads whatever the share sheet
-/// hands us — selected text, a URL, and/or a screenshot (OCR'd on-device) —
-/// extracts movie/TV titles on-device with Apple Intelligence, resolves them to
-/// real entries via the server, and lets the user confirm before batch-saving
-/// to their list. All in the share sheet overlay.
+/// hands us — selected text, a URL, a screenshot (OCR'd on-device), and/or a
+/// video (frames OCR'd + narration transcribed on-device) — extracts movie/TV
+/// titles on-device with Apple Intelligence, resolves them to real entries via
+/// the server, and lets the user confirm before batch-saving to their list.
+/// All in the share sheet overlay.
 final class ShareViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -158,8 +159,9 @@ final class ShareModel {
     // MARK: Input gathering
 
     /// Collects every usable piece of text from the shared items: the share
-    /// sheet's attributed text, plain-text attachments, URLs, and OCR of any
-    /// shared image. Joined into one blob for on-device extraction.
+    /// sheet's attributed text, plain-text attachments, URLs, OCR of any shared
+    /// image, and — for a shared video — on-screen text plus narration. Joined
+    /// into one blob for on-device extraction.
     private func gatherSharedText() async -> String {
         guard let items = extensionContext?.inputItems as? [NSExtensionItem] else { return "" }
 

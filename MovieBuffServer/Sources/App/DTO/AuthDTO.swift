@@ -26,6 +26,11 @@ struct UserDTO: Content {
     let isPremium: Bool
     let subscriptionExpiresAt: Date?
     let subscriptionProvider: String?
+    let bio: String?
+    let isPublic: Bool
+    /// Avatar as a base64 JPEG (small, client-downscaled). Delivered inline to
+    /// avoid authenticated-image-URL handling on the client.
+    let avatarBase64: String?
 
     init(_ user: User) throws {
         self.id = try user.requireID()
@@ -34,6 +39,9 @@ struct UserDTO: Content {
         self.isPremium = user.isPremium
         self.subscriptionExpiresAt = user.subscriptionExpiresAt
         self.subscriptionProvider = user.subscriptionProvider
+        self.bio = user.bio
+        self.isPublic = user.isPublic
+        self.avatarBase64 = user.avatarData?.base64EncodedString()
     }
 }
 

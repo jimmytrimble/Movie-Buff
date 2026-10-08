@@ -7,6 +7,11 @@ struct User: Codable, Identifiable, Hashable {
     let isPremium: Bool?
     let subscriptionExpiresAt: Date?
     let subscriptionProvider: String?
+    var bio: String?
+    var isPublic: Bool?
+    var avatarBase64: String?
+
+    var avatarImageData: Data? { avatarBase64.flatMap { Data(base64Encoded: $0) } }
 }
 
 struct RegisterRequest: Codable {
@@ -55,6 +60,16 @@ struct UserDTO: Codable, Identifiable, Hashable {
     let id: UUID
     let email: String
     let displayName: String?
+    var bio: String?
+    var isPublic: Bool?
+    var avatarBase64: String?
+
+    var avatarImageData: Data? { avatarBase64.flatMap { Data(base64Encoded: $0) } }
+
+    var displayLabel: String {
+        if let name = displayName, !name.isEmpty { return name }
+        return email
+    }
 }
 
 enum FriendshipStatus: String, Codable, Hashable {
@@ -456,5 +471,81 @@ struct PersonMovieCredit: Codable, Identifiable, Hashable {
 
 struct PersonMovieCreditsResponse: Codable {
     let results: [PersonMovieCredit]
+}
+
+// MARK: - Profiles
+
+struct ProfileDTO: Codable, Hashable {
+    let user: UserDTO
+    let isSelf: Bool
+    let isFriend: Bool
+    let savedCount: Int
+    let commentCount: Int
+    let savedMovies: [SavedMovie]
+    let comments: [ProfileCommentDTO]
+    let ratings: [ProfileRatingDTO]
+}
+
+struct ProfileCommentDTO: Codable, Identifiable, Hashable {
+    let id: UUID
+    let imdbID: String
+    let content: String
+    let isSpoiler: Bool
+    let createdAt: Date?
+}
+
+struct ProfileRatingDTO: Codable, Identifiable, Hashable {
+    let imdbID: String
+    let rating: String
+
+    var id: String { imdbID }
+    var value: ReelRatingValue? { ReelRatingValue(rawValue: rating) }
+}
+
+struct UpdateProfileInfoRequest: Codable {
+    let bio: String?
+    let isPublic: Bool?
+}
+
+struct UploadAvatarRequest: Codable {
+    let imageBase64: String
+}
+
+// MARK: - Messaging
+
+struct MessageMovieDTO: Codable, Hashable {
+    let imdbID: String
+    let title: String
+    let year: String?
+    let posterURL: String?
+
+    var posterAsURL: URL? {
+        guard let posterURL, posterURL != "N/A" else { return nil }
+        return URL(string: posterURL)
+    }
+}
+
+struct MessageDTO: Codable, Identifiable, Hashable {
+    let id: UUID
+    let senderID: UUID
+    let recipientID: UUID
+    let body: String?
+    let movie: MessageMovieDTO?
+    let isRead: Bool
+    let createdAt: Date?
+    let isMine: Bool
+}
+
+struct ConversationDTO: Codable, Identifiable, Hashable {
+    let user: UserDTO
+    let lastMessage: MessageDTO
+    let unreadCount: Int
+
+    var id: UUID { user.id }
+}
+
+struct SendMessageRequest: Codable {
+    let body: String?
+    let movie: MessageMovieDTO?
 }
 

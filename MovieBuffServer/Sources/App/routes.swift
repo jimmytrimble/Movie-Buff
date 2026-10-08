@@ -14,6 +14,8 @@ func routes(_ app: Application) throws {
     try app.register(collection: CommentController())
     try app.register(collection: SubscriptionController())
     try app.register(collection: PeopleController())
+    try app.register(collection: ProfileController())
+    try app.register(collection: MessageController())
 }
 
 struct HealthResponse: Content {
