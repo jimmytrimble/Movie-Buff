@@ -7,6 +7,7 @@ struct PublicProfileView: View {
     var preloadedName: String?
 
     @Environment(AuthStore.self) private var auth
+    @Environment(SubscriptionStore.self) private var subscriptions
 
     @State private var profile: ProfileDTO?
     @State private var isLoading = false
@@ -60,6 +61,8 @@ struct PublicProfileView: View {
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView(reason: "Messaging friends is a Premium feature.")
+                .environment(auth)
+                .environment(subscriptions)
         }
         .task { await load() }
     }

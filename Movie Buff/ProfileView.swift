@@ -203,7 +203,16 @@ struct ProfileView: View {
     }
 
     private var visibilitySection: some View {
-        Toggle(isOn: $isPublic) {
+        // Custom binding so toggling saves immediately, but programmatic updates
+        // from load()/save() (which set `isPublic` directly) don't write back.
+        let binding = Binding(
+            get: { isPublic },
+            set: { newValue in
+                isPublic = newValue
+                Task { await saveInfo(isPublic: newValue) }
+            }
+        )
+        return Toggle(isOn: binding) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Public profile").font(.subheadline.weight(.semibold)).foregroundStyle(.white)
                 Text(isPublic ? "Anyone can find and view your profile."
@@ -214,10 +223,6 @@ struct ProfileView: View {
         .tint(Theme.accent)
         .padding(12)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
-        .onChange(of: isPublic) { old, new in
-            guard profile != nil, old != new else { return }
-            Task { await saveInfo(isPublic: new) }
-        }
     }
 
     private var statsBar: some View {

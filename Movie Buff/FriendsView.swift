@@ -77,6 +77,7 @@ final class NotificationsStore {
 struct FriendsView: View {
     @Environment(NotificationsStore.self) private var notifications
     @Environment(AuthStore.self) private var auth
+    @Environment(SubscriptionStore.self) private var subscriptions
     #if os(iOS)
     @Environment(PushCoordinator.self) private var push
     #endif
@@ -265,6 +266,8 @@ struct FriendsView: View {
         }
         .sheet(isPresented: $showingMessages) {
             MessagesView()
+                .environment(auth)
+                .environment(subscriptions)
         }
         .navigationDestination(for: FriendDTO.self) { friend in
             FriendMoviesView(friend: friend)
